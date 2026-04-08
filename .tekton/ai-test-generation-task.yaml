@@ -146,7 +146,9 @@ spec:
       echo ""
 
       # Check if test orchestrator scripts exist in current repo
-      cd /
+      pwd 
+      
+      cd /workspace
       pwd
       ls -la
       echo ""
@@ -175,12 +177,10 @@ spec:
         # Run the orchestrator
         echo "🚀 Running AI test generation..."
         /tmp/test-orchestrator \
-          --repo="$REPOSITORY" \
-          --branch="$GIT_BRANCH" \
-          --commit="$GIT_COMMIT" \
-          --base-branch="$BASE_BRANCH" \
-          --coverage-target="$COVERAGE_TARGET" \
-          --functional-test-repo="$FUNCTIONAL_TEST_REPO"
+          -base="$BASE_BRANCH" \
+          -head="$GIT_BRANCH" \
+          -root="$(workspaces.output.path)" \
+          -output="$(workspaces.output.path)/generated-tests"
         
         # Cleanup
         rm -rf "$TEMP_DIR"

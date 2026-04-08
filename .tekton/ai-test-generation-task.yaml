@@ -45,8 +45,16 @@ spec:
     description: Workspace for pipeline artifacts
   - name: tools-ws
     description: Workspace for shared tools and dependencies
-  - name: secrets
-    description: Workspace for secrets
+  
+  volumes:
+  - name: bobshell-api-key-volume
+    secret:
+      secretName: bobshell-api-key
+      optional: true
+  - name: github-token-volume
+    secret:
+      secretName: github-token
+      optional: true
 
   steps:
   - name: ai-test-generation
@@ -79,6 +87,13 @@ spec:
           name: $(params.github-token-secret)
           key: token
           optional: true
+    volumeMounts:
+    - name: bobshell-api-key-volume
+      mountPath: /secrets/bobshell
+      readOnly: true
+    - name: github-token-volume
+      mountPath: /secrets/github
+      readOnly: true
     workingDir: $(workspaces.output.path)
     script: |
       #!/usr/bin/env bash
@@ -97,6 +112,26 @@ spec:
       echo "Branch: $GIT_BRANCH"
       echo "Commit: $GIT_COMMIT"
       echo "Base Branch: $BASE_BRANCH"
+      echo ""
+      
+      # Load secrets from mounted volumes (if available)
+      if [ -f "/secrets/bobshell/api-key" ]; then
+        export BOBSHELL_API_KEY=$(cat /secrets/bobshell/api-key)
+        echo "✅ Bob Shell API key loaded from volume"
+      elif [ -n "$BOBSHELL_API_KEY" ]; then
+        echo "✅ Bob Shell API key loaded from environment"
+      else
+        echo "⚠️  Bob Shell API key not found (optional)"
+      fi
+      
+      if [ -f "/secrets/github/token" ]; then
+        export GITHUB_TOKEN=$(cat /secrets/github/token)
+        echo "✅ GitHub token loaded from volume"
+      elif [ -n "$GITHUB_TOKEN" ]; then
+        echo "✅ GitHub token loaded from environment"
+      else
+        echo "⚠️  GitHub token not found (optional)"
+      fi
       echo ""
 
       # Use Go from shared tools workspace

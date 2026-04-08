@@ -22,13 +22,13 @@ spec:
     type: string
     default: "0"
   - name: bobshell-api-key-secret
-    description: Secret name containing Bob Shell API key
+    description: Bob Shell API key (from OnePipeline environment)
     type: string
-    default: "bobshell-api-key"
+    default: ""
   - name: github-token-secret
-    description: Secret name containing GitHub token
+    description: GitHub token (from OnePipeline environment)
     type: string
-    default: "github-token"
+    default: ""
   - name: functional-test-repo
     description: Functional test repository (org/repo)
     type: string

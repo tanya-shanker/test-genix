@@ -27,18 +27,18 @@ spec:
     description: Functional test repository
     type: string
     default: ""
-  - name: bobshell-api-key-secret
-    description: Secret name for Bob Shell API key
-    type: string
-    default: "bobshell-api-key"
-  - name: github-token-secret
-    description: Secret name for GitHub token
-    type: string
-    default: "github-token"
   - name: pipeline-debug
     description: Enable debug mode
     type: string
     default: "0"
+  - name: bobshell-api-key-secret
+    description: Bob Shell API key for AI test generation (passed from pipeline environment)
+    type: string
+    default: ""
+  - name: github-token-secret
+    description: GitHub token for git operations (passed from pipeline environment)
+    type: string
+    default: ""
 
   workspaces:
   - name: output
@@ -74,7 +74,6 @@ spec:
       value: $(params.functional-test-repo)
     - name: REPOSITORY
       value: $(params.repository)
-    # API keys from secrets
     - name: BOBSHELL_API_KEY
       valueFrom:
         secretKeyRef:
@@ -121,7 +120,9 @@ spec:
       elif [ -n "$BOBSHELL_API_KEY" ]; then
         echo "✅ Bob Shell API key loaded from environment"
       else
-        echo "⚠️  Bob Shell API key not found (optional)"
+        echo "❌ BOBSHELL_API_KEY not found"
+        echo "   → Set this in IBM Cloud OnePipeline environment properties"
+        echo "   → AI test generation will not work without it"
       fi
 
       if [ -f "/secrets/github/token" ]; then
@@ -130,7 +131,9 @@ spec:
       elif [ -n "$GITHUB_TOKEN" ]; then
         echo "✅ GitHub token loaded from environment"
       else
-        echo "⚠️  GitHub token not found (optional)"
+        echo "❌ GITHUB_TOKEN not found"
+        echo "   → Set this in IBM Cloud OnePipeline environment properties"
+        echo "   → Git push operations will fail without it"
       fi
       echo ""
 

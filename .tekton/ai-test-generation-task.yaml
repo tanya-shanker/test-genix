@@ -41,12 +41,8 @@ spec:
     default: "0"
 
   workspaces:
-  - name: output
-    description: Workspace for pipeline artifacts
-  - name: tools-ws
-    description: Workspace for shared tools and dependencies
-  - name: secrets
-    description: Workspace for secrets
+  - name: source
+    description: Workspace for source code and artifacts
 
   steps:
   - name: ai-test-generation
@@ -66,7 +62,6 @@ spec:
       value: $(params.functional-test-repo)
     - name: REPOSITORY
       value: $(params.repository)
-    # API keys from secrets
     - name: BOBSHELL_API_KEY
       valueFrom:
         secretKeyRef:
@@ -79,12 +74,11 @@ spec:
           name: $(params.github-token-secret)
           key: token
           optional: true
-    workingDir: $(workspaces.output.path)
+    workingDir: $(workspaces.source.path)
     script: |
       #!/usr/bin/env bash
       set -eo pipefail
 
-      # Enable debug if requested
       if [ "$PIPELINE_DEBUG" = "1" ]; then
         set -x
       fi
@@ -99,15 +93,10 @@ spec:
       echo "Base Branch: $BASE_BRANCH"
       echo ""
 
-      # Use Go from shared tools workspace
-      GO_INSTALL_DIR="$(workspaces.tools-ws.path)/go"
-      export PATH="$GO_INSTALL_DIR/bin:$PATH"
-      export GOPATH="$(workspaces.tools-ws.path)/gopath"
-      export PATH="$GOPATH/bin:$PATH"
+      # Set Go environment
+      export PATH=$PATH:/usr/local/go/bin
 
       echo "Go version: $(go version)"
-      echo "Go location: $GO_INSTALL_DIR"
-      echo "GOPATH: $GOPATH"
 
       # Make script executable
       chmod +x ./scripts/ai-test-generator.sh

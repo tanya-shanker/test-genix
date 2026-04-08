@@ -6,52 +6,50 @@ metadata:
     description: "Run static code analysis"
 spec:
   params:
-    - name: pipeline-debug
-      description: Enable debug mode
-      type: string
-      default: "0"
+  - name: pipeline-debug
+    description: Enable debug mode
+    type: string
+    default: "0"
 
   workspaces:
-    - name: output
-      description: Workspace for pipeline artifacts
-    - name: tools-ws
-      description: Workspace for shared tools and dependencies
+  - name: source
+    description: Workspace for source code and artifacts
 
   steps:
-    - name: static-analysis
-      image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
-      env:
-        - name: PIPELINE_DEBUG
-          value: $(params.pipeline-debug)
-      workingDir: $(workspaces.output.path)
-      script: |
-        #!/usr/bin/env bash
-        set -eo pipefail
-        
-        if [ "$PIPELINE_DEBUG" = "1" ]; then
-          set -x
-        fi
-        
-        echo "=================================================="
-        echo "🔍 Static Code Analysis"
-        echo "=================================================="
-        
-        # Run static analysis if tools are available
-        if command -v golangci-lint &> /dev/null; then
-          echo "Running golangci-lint..."
-          golangci-lint run ./... || true
-        fi
-        
-        if command -v eslint &> /dev/null; then
-          echo "Running ESLint..."
-          eslint . || true
-        fi
-        
-        if command -v pylint &> /dev/null; then
-          echo "Running Pylint..."
-          pylint **/*.py || true
-        fi
-        
-        echo "✅ Static scan complete"
+  - name: static-analysis
+    image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+    env:
+    - name: PIPELINE_DEBUG
+      value: $(params.pipeline-debug)
+    workingDir: $(workspaces.source.path)
+    script: |
+      #!/usr/bin/env bash
+      set -eo pipefail
+
+      if [ "$PIPELINE_DEBUG" = "1" ]; then
+        set -x
+      fi
+
+      echo "=================================================="
+      echo "🔍 Static Code Analysis"
+      echo "=================================================="
+
+      # Run static analysis if tools are available
+      if command -v golangci-lint &> /dev/null; then
+        echo "Running golangci-lint..."
+        golangci-lint run ./... || true
+      fi
+
+      if command -v eslint &> /dev/null; then
+        echo "Running ESLint..."
+        eslint . || true
+      fi
+
+      if command -v pylint &> /dev/null; then
+        echo "Running Pylint..."
+        pylint **/*.py || true
+      fi
+
+      echo "✅ Static scan complete"
 
 # Made with Bob

@@ -153,19 +153,27 @@ func (pc *PRCreator) prepareFunctionalTestRepo() (string, error) {
 
 // getFunctionalRepoURL constructs the functional test repository URL
 func (pc *PRCreator) getFunctionalRepoURL() string {
+	fmt.Printf("DEBUG: functionalRepo value = '%s'\n", pc.functionalRepo)
+
 	// If functionalRepo is already a full URL, return it as-is
 	if strings.HasPrefix(pc.functionalRepo, "http://") || strings.HasPrefix(pc.functionalRepo, "https://") {
 		// Remove trailing slash if present
-		return strings.TrimSuffix(pc.functionalRepo, "/")
+		cleanURL := strings.TrimSuffix(pc.functionalRepo, "/")
+		fmt.Printf("DEBUG: Detected full URL, returning: '%s'\n", cleanURL)
+		return cleanURL
 	}
 
 	// Otherwise, construct the URL from owner/repo format
+	var constructedURL string
 	if pc.config.GitHubEnterpriseURL != "" {
 		// GitHub Enterprise
-		return fmt.Sprintf("%s/%s.git", pc.config.GitHubEnterpriseURL, pc.functionalRepo)
+		constructedURL = fmt.Sprintf("%s/%s.git", pc.config.GitHubEnterpriseURL, pc.functionalRepo)
+	} else {
+		// GitHub.com
+		constructedURL = fmt.Sprintf("https://github.com/%s.git", pc.functionalRepo)
 	}
-	// GitHub.com
-	return fmt.Sprintf("https://github.com/%s.git", pc.functionalRepo)
+	fmt.Printf("DEBUG: Constructed URL from owner/repo: '%s'\n", constructedURL)
+	return constructedURL
 }
 
 // createBranch creates a new branch in the repository

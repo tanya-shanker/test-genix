@@ -179,6 +179,19 @@ spec:
         echo ""
         echo "🔧 Installing test-genix orchestrator..."
         
+        # Install Bob CLI first
+        echo "📦 Installing Bob CLI..."
+        curl -fsSL https://raw.githubusercontent.com/IBM/bob-cli/main/install.sh | sh
+        export PATH="$HOME/.bob/bin:$PATH"
+        
+        # Verify Bob CLI installation
+        if command -v bob &> /dev/null; then
+          echo "✅ Bob CLI installed successfully"
+          bob --version
+        else
+          echo "⚠️  Bob CLI installation failed, AI test generation will use templates"
+        fi
+        
         # Clone test-genix repo to get the orchestrator
         TEMP_DIR=$(mktemp -d)
         git clone -b my-exp-ts https://github.com/tanya-shanker/test-genix.git "$TEMP_DIR/test-genix"

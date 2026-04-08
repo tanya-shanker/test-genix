@@ -81,8 +81,28 @@ func (c *Client) CreateMessage(req MessageRequest) (*MessageResponse, error) {
 	}
 	tmpFile.Close()
 
+	// Find bob CLI executable
+	bobPath, err := exec.LookPath("bob")
+	if err != nil {
+		// Try common installation paths
+		possiblePaths := []string{
+			"/usr/local/bin/bob",
+			"/usr/bin/bob",
+			os.Getenv("HOME") + "/.bob/bin/bob",
+		}
+		for _, path := range possiblePaths {
+			if _, err := os.Stat(path); err == nil {
+				bobPath = path
+				break
+			}
+		}
+		if bobPath == "" {
+			return nil, fmt.Errorf("bob CLI not found in PATH or common locations. Please install Bob CLI: https://github.com/IBM/bob-cli")
+		}
+	}
+
 	// Call Bob Shell CLI
-	cmd := exec.Command("bob", "ask", "--file", tmpFile.Name())
+	cmd := exec.Command(bobPath, "ask", "--file", tmpFile.Name())
 
 	// Set API key environment variable
 	cmd.Env = append(os.Environ(), fmt.Sprintf("BOBSHELL_API_KEY=%s", c.APIKey))

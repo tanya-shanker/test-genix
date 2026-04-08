@@ -40,6 +40,8 @@ func NewPRCreator(config *types.Config, projectRoot string) *PRCreator {
 		}
 	}
 
+	fmt.Println("FUNCTIONAL TEST REPO INSIDE NewPRCreator", config.FunctionalTestRepo)
+
 	return &PRCreator{
 		config:         config,
 		githubClient:   client,
@@ -154,10 +156,11 @@ func (pc *PRCreator) prepareFunctionalTestRepo() (string, error) {
 // getFunctionalRepoURL constructs the functional test repository URL
 func (pc *PRCreator) getFunctionalRepoURL() string {
 	fmt.Printf("DEBUG: functionalRepo value = '%s'\n", pc.functionalRepo)
-
+	fmt.Println("FUNCTIONAL TEST REPO INSIDE getFunctionalRepoURL", pc.functionalRepo)
 	// If functionalRepo is already a full URL, return it as-is
 	if strings.HasPrefix(pc.functionalRepo, "http://") || strings.HasPrefix(pc.functionalRepo, "https://") {
 		// Remove trailing slash if present
+		fmt.Println("INSIDE PREFIX CHECKING IN getFunctionalRepoURL")
 		cleanURL := strings.TrimSuffix(pc.functionalRepo, "/")
 		fmt.Printf("DEBUG: Detected full URL, returning: '%s'\n", cleanURL)
 		return cleanURL
@@ -170,8 +173,10 @@ func (pc *PRCreator) getFunctionalRepoURL() string {
 		constructedURL = fmt.Sprintf("%s/%s.git", pc.config.GitHubEnterpriseURL, pc.functionalRepo)
 	} else {
 		// GitHub.com
+		fmt.Println("INSIDE NORMAL CONSTRUCTED URL CHECK IN getFunctionalRepoURL")
 		constructedURL = fmt.Sprintf("https://github.com/%s.git", pc.functionalRepo)
 	}
+	fmt.Println("FUNCTIONAL TEST REPO INSIDE getFunctionalRepoURL", constructedURL)
 	fmt.Printf("DEBUG: Constructed URL from owner/repo: '%s'\n", constructedURL)
 	return constructedURL
 }

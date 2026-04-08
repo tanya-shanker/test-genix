@@ -127,9 +127,6 @@ spec:
                 resources:
                   requests:
                     storage: 500Mi
-          - name: secrets
-            secret:
-              secretName: pipeline-secrets
 
 ---
 apiVersion: v1

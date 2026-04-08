@@ -7,31 +7,30 @@ metadata:
 spec:
   serviceAccountName: tekton-triggers-sa
   triggers:
-    - name: github-pr-trigger
-      interceptors:
-        - ref:
-            name: "github"
-          params:
-            - name: "secretRef"
-              value:
-                secretName: github-webhook-secret
-                secretKey: secret
-            - name: "eventTypes"
-              value:
-                - pull_request
-        - ref:
-            name: "cel"
-          params:
-            - name: "filter"
-              value: >
-                (body.action == 'opened' || 
-                 body.action == 'synchronize' || 
-                 body.action == 'reopened')
-      bindings:
-        - ref: github-pr-binding
-      template:
-        ref: intelligent-test-orchestrator-template
-
+  - name: github-pr-trigger
+    interceptors:
+    - ref:
+        name: "github"
+      params:
+      - name: "secretRef"
+        value:
+          secretName: github-webhook-secret
+          secretKey: secret
+      - name: "eventTypes"
+        value:
+        - pull_request
+    - ref:
+        name: "cel"
+      params:
+      - name: "filter"
+        value: >
+          (body.action == 'opened' || 
+           body.action == 'synchronize' || 
+           body.action == 'reopened')
+    bindings:
+    - ref: github-pr-binding
+    template:
+      ref: intelligent-test-orchestrator-template
 ---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
@@ -41,21 +40,20 @@ metadata:
     description: "Binding for GitHub PR events"
 spec:
   params:
-    - name: repository
-      value: $(body.repository.clone_url)
-    - name: branch
-      value: $(body.pull_request.head.ref)
-    - name: revision
-      value: $(body.pull_request.head.sha)
-    - name: base-branch
-      value: $(body.pull_request.base.ref)
-    - name: pr-number
-      value: $(body.pull_request.number)
-    - name: pr-url
-      value: $(body.pull_request.html_url)
-    - name: repo-full-name
-      value: $(body.repository.full_name)
-
+  - name: repository
+    value: $(body.repository.clone_url)
+  - name: branch
+    value: $(body.pull_request.head.ref)
+  - name: revision
+    value: $(body.pull_request.head.sha)
+  - name: base-branch
+    value: $(body.pull_request.base.ref)
+  - name: pr-number
+    value: $(body.pull_request.number)
+  - name: pr-url
+    value: $(body.pull_request.html_url)
+  - name: repo-full-name
+    value: $(body.repository.full_name)
 ---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
@@ -65,69 +63,76 @@ metadata:
     description: "Template for creating pipeline runs"
 spec:
   params:
-    - name: repository
-      description: The git repository URL
-    - name: branch
-      description: The git branch
-    - name: revision
-      description: The git revision
-    - name: base-branch
-      description: The base branch
-      default: main
-    - name: pr-number
-      description: Pull request number
-    - name: pr-url
-      description: Pull request URL
-    - name: repo-full-name
-      description: Repository full name (org/repo)
+  - name: repository
+    description: The git repository URL
+  - name: branch
+    description: The git branch
+  - name: revision
+    description: The git revision
+  - name: base-branch
+    description: The base branch
+    default: main
+  - name: pr-number
+    description: Pull request number
+  - name: pr-url
+    description: Pull request URL
+  - name: repo-full-name
+    description: Repository full name (org/repo)
   resourcetemplates:
-    - apiVersion: tekton.dev/v1beta1
-      kind: PipelineRun
-      metadata:
-        generateName: intelligent-test-orchestrator-run-
-        labels:
-          tekton.dev/pipeline: intelligent-test-orchestrator-pipeline
-          pr-number: $(tt.params.pr-number)
-      spec:
-        pipelineRef:
-          name: intelligent-test-orchestrator-pipeline
-        params:
-          - name: repository
-            value: $(tt.params.repository)
-          - name: branch
-            value: $(tt.params.branch)
-          - name: revision
-            value: $(tt.params.revision)
-          - name: base-branch
-            value: $(tt.params.base-branch)
-          - name: pipeline-debug
-            value: "0"
-          - name: bobshell-api-key-secret
-            value: "bobshell-api-key"
-          - name: github-token-secret
-            value: "github-token"
-          - name: functional-test-repo
-            value: ""
-          - name: coverage-target
-            value: "80"
-        workspaces:
-          - name: pipeline-ws
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                resources:
-                  requests:
-                    storage: 1Gi
-          - name: tools-ws
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                resources:
-                  requests:
-                    storage: 500Mi
-
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: secret-object
+    type: Opaque
+    stringData:
+      api-key: $(params.bobshell-api-key-secret)
+      token: $(params.github-token-secret)
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: intelligent-test-orchestrator-run-
+      labels:
+        tekton.dev/pipeline: intelligent-test-orchestrator-pipeline
+        pr-number: $(tt.params.pr-number)
+    spec:
+      pipelineRef:
+        name: intelligent-test-orchestrator-pipeline
+      params:
+      - name: repository
+        value: $(tt.params.repository)
+      - name: branch
+        value: $(tt.params.branch)
+      - name: revision
+        value: $(tt.params.revision)
+      - name: base-branch
+        value: $(tt.params.base-branch)
+      - name: pipeline-debug
+        value: "0"
+      - name: bobshell-api-key-secret
+        value: "bobshell-api-key"
+      - name: github-token-secret
+        value: "github-token"
+      - name: functional-test-repo
+        value: ""
+      - name: coverage-target
+        value: "80"
+      workspaces:
+      - name: pipeline-ws
+        volumeClaimTemplate:
+          spec:
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
+      - name: tools-ws
+        volumeClaimTemplate:
+          spec:
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 500Mi
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -135,47 +140,44 @@ metadata:
   name: tekton-triggers-sa
   annotations:
     description: "Service account for Tekton triggers"
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: tekton-triggers-role
 rules:
-  - apiGroups:
-      - triggers.tekton.dev
-    resources:
-      - eventlisteners
-      - triggerbindings
-      - triggertemplates
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - tekton.dev
-    resources:
-      - pipelineruns
-      - pipelineresources
-    verbs:
-      - create
-      - get
-      - list
-      - watch
-
+- apiGroups:
+  - triggers.tekton.dev
+  resources:
+  - eventlisteners
+  - triggerbindings
+  - triggertemplates
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - tekton.dev
+  resources:
+  - pipelineruns
+  - pipelineresources
+  verbs:
+  - create
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: tekton-triggers-rolebinding
 subjects:
-  - kind: ServiceAccount
-    name: tekton-triggers-sa
+- kind: ServiceAccount
+  name: tekton-triggers-sa
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: tekton-triggers-role
-
 ---
 apiVersion: v1
 kind: Secret

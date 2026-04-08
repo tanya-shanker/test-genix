@@ -45,7 +45,7 @@ spec:
     description: Workspace for pipeline artifacts
   - name: tools-ws
     description: Workspace for shared tools and dependencies
-  
+
   volumes:
   - name: bobshell-api-key-volume
     secret:
@@ -78,13 +78,13 @@ spec:
     - name: BOBSHELL_API_KEY
       valueFrom:
         secretKeyRef:
-          name: $(params.bobshell-api-key-secret)
+          name: secret-object
           key: api-key
           optional: true
     - name: GITHUB_TOKEN
       valueFrom:
         secretKeyRef:
-          name: $(params.github-token-secret)
+          name: secret-object
           key: token
           optional: true
     volumeMounts:
@@ -113,7 +113,7 @@ spec:
       echo "Commit: $GIT_COMMIT"
       echo "Base Branch: $BASE_BRANCH"
       echo ""
-      
+
       # Load secrets from mounted volumes (if available)
       if [ -f "/secrets/bobshell/api-key" ]; then
         export BOBSHELL_API_KEY=$(cat /secrets/bobshell/api-key)
@@ -123,7 +123,7 @@ spec:
       else
         echo "⚠️  Bob Shell API key not found (optional)"
       fi
-      
+
       if [ -f "/secrets/github/token" ]; then
         export GITHUB_TOKEN=$(cat /secrets/github/token)
         echo "✅ GitHub token loaded from volume"
@@ -147,7 +147,7 @@ spec:
 
       # Check if test orchestrator scripts exist in current repo
       pwd 
-      
+
       cd /workspace
       pwd
       ls -la

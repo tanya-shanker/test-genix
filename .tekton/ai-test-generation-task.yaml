@@ -179,17 +179,21 @@ spec:
         echo ""
         echo "🔧 Installing test-genix orchestrator..."
         
-        # Install Bob CLI first
-        echo "📦 Installing Bob CLI..."
-        curl -fsSL https://raw.githubusercontent.com/IBM/bob-cli/main/install.sh | sh
+        # Install Bob Shell CLI
+        echo "📦 Installing Bob Shell CLI..."
+        curl -s https://s3.us-south.cloud-object-storage.appdomain.cloud/bobshell/install-bobshell.sh | bash
+        
+        # Add Bob Shell to PATH
         export PATH="$HOME/.bob/bin:$PATH"
         
-        # Verify Bob CLI installation
+        # Verify Bob Shell installation
         if command -v bob &> /dev/null; then
-          echo "✅ Bob CLI installed successfully"
-          bob --version
+          echo "✅ Bob Shell CLI installed successfully"
+          bob --version || echo "Bob version check skipped"
         else
-          echo "⚠️  Bob CLI installation failed, AI test generation will use templates"
+          echo "⚠️  Bob Shell CLI installation failed, AI test generation will use templates"
+          echo "   Checking common installation paths..."
+          ls -la "$HOME/.bob/bin/" 2>/dev/null || echo "   ~/.bob/bin/ not found"
         fi
         
         # Clone test-genix repo to get the orchestrator

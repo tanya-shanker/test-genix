@@ -146,6 +146,7 @@ spec:
       echo ""
 
       # Check if test orchestrator scripts exist in current repo
+      cd /
       pwd
       ls -la
       echo ""

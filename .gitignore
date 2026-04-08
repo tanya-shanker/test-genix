@@ -33,6 +33,10 @@ coverage-report.json
 *.swo
 *~
 
+# VS Code workspace settings (keep settings.json for Tekton schema)
+.vscode/*
+!.vscode/settings.json
+
 # OS
 .DS_Store
 Thumbs.db

@@ -1,0 +1,134 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: intelligent-test-orchestrator-pipeline
+  annotations:
+    description: "AI-powered test generation pipeline using IBM Bob Shell"
+spec:
+  params:
+    - name: repository
+      description: The git repository URL
+      type: string
+    - name: branch
+      description: The git branch to build
+      type: string
+      default: main
+    - name: revision
+      description: The git revision to build
+      type: string
+      default: ""
+    - name: pipeline-debug
+      description: Enable pipeline debug mode
+      type: string
+      default: "0"
+    - name: bobshell-api-key-secret
+      description: Secret name containing Bob Shell API key
+      type: string
+      default: "bobshell-api-key"
+    - name: github-token-secret
+      description: Secret name containing GitHub token
+      type: string
+      default: "github-token"
+    - name: functional-test-repo
+      description: Functional test repository (org/repo)
+      type: string
+      default: ""
+    - name: coverage-target
+      description: Target code coverage percentage
+      type: string
+      default: "80"
+    - name: base-branch
+      description: Base branch for comparison
+      type: string
+      default: "main"
+
+  workspaces:
+    - name: pipeline-ws
+      description: Workspace for pipeline artifacts
+    - name: secrets
+      description: Workspace for secrets
+
+  tasks:
+    - name: setup
+      taskRef:
+        name: setup-task
+      params:
+        - name: repository
+          value: $(params.repository)
+        - name: branch
+          value: $(params.branch)
+        - name: revision
+          value: $(params.revision)
+        - name: pipeline-debug
+          value: $(params.pipeline-debug)
+      workspaces:
+        - name: output
+          workspace: pipeline-ws
+
+    - name: test
+      runAfter:
+        - setup
+      taskRef:
+        name: test-task
+      params:
+        - name: pipeline-debug
+          value: $(params.pipeline-debug)
+      workspaces:
+        - name: output
+          workspace: pipeline-ws
+
+    - name: ai-test-generation
+      runAfter:
+        - test
+      taskRef:
+        name: ai-test-generation-task
+      params:
+        - name: repository
+          value: $(params.repository)
+        - name: branch
+          value: $(params.branch)
+        - name: revision
+          value: $(params.revision)
+        - name: base-branch
+          value: $(params.base-branch)
+        - name: coverage-target
+          value: $(params.coverage-target)
+        - name: functional-test-repo
+          value: $(params.functional-test-repo)
+        - name: bobshell-api-key-secret
+          value: $(params.bobshell-api-key-secret)
+        - name: github-token-secret
+          value: $(params.github-token-secret)
+        - name: pipeline-debug
+          value: $(params.pipeline-debug)
+      workspaces:
+        - name: output
+          workspace: pipeline-ws
+        - name: secrets
+          workspace: secrets
+
+    - name: static-scan
+      runAfter:
+        - ai-test-generation
+      taskRef:
+        name: static-scan-task
+      params:
+        - name: pipeline-debug
+          value: $(params.pipeline-debug)
+      workspaces:
+        - name: output
+          workspace: pipeline-ws
+
+    - name: deploy
+      runAfter:
+        - static-scan
+      taskRef:
+        name: deploy-task
+      params:
+        - name: pipeline-debug
+          value: $(params.pipeline-debug)
+      workspaces:
+        - name: output
+          workspace: pipeline-ws
+
+# Made with Bob

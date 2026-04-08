@@ -1,0 +1,49 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: deploy-task
+  annotations:
+    description: "Deploy application"
+spec:
+  params:
+    - name: pipeline-debug
+      description: Enable debug mode
+      type: string
+      default: "0"
+
+  workspaces:
+    - name: output
+      description: Workspace for pipeline artifacts
+
+  steps:
+    - name: deploy
+      image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+      env:
+        - name: PIPELINE_DEBUG
+          value: $(params.pipeline-debug)
+      workingDir: $(workspaces.output.path)
+      script: |
+        #!/usr/bin/env bash
+        set -eo pipefail
+        
+        if [ "$PIPELINE_DEBUG" = "1" ]; then
+          set -x
+        fi
+        
+        echo "=================================================="
+        echo "🚀 Deploy Stage"
+        echo "=================================================="
+        
+        # Add your deployment logic here
+        # Examples:
+        # - kubectl apply -f deployment.yaml
+        # - helm upgrade --install myapp ./chart
+        # - cf push
+        # - docker push
+        
+        echo "Deployment logic placeholder"
+        echo "Configure this task based on your deployment target"
+        
+        echo "✅ Deploy complete"
+
+# Made with Bob

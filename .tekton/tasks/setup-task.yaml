@@ -1,0 +1,103 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: setup-task
+  annotations:
+    description: "Setup environment for test orchestrator"
+spec:
+  params:
+    - name: repository
+      description: The git repository URL
+      type: string
+    - name: branch
+      description: The git branch
+      type: string
+    - name: revision
+      description: The git revision
+      type: string
+    - name: pipeline-debug
+      description: Enable debug mode
+      type: string
+      default: "0"
+
+  workspaces:
+    - name: output
+      description: Workspace for pipeline artifacts
+
+  steps:
+    - name: clone-repository
+      image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+      env:
+        - name: PIPELINE_DEBUG
+          value: $(params.pipeline-debug)
+        - name: REPOSITORY
+          value: $(params.repository)
+        - name: BRANCH
+          value: $(params.branch)
+        - name: REVISION
+          value: $(params.revision)
+      workingDir: $(workspaces.output.path)
+      script: |
+        #!/usr/bin/env bash
+        set -eo pipefail
+        
+        if [ "$PIPELINE_DEBUG" = "1" ]; then
+          set -x
+        fi
+        
+        echo "=================================================="
+        echo "🔧 Setup: Cloning Repository"
+        echo "=================================================="
+        
+        # Clone repository
+        git clone "$REPOSITORY" .
+        git checkout "$BRANCH"
+        
+        if [ -n "$REVISION" ]; then
+          git checkout "$REVISION"
+        fi
+        
+        echo "✅ Repository cloned successfully"
+
+    - name: install-dependencies
+      image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+      env:
+        - name: PIPELINE_DEBUG
+          value: $(params.pipeline-debug)
+      workingDir: $(workspaces.output.path)
+      script: |
+        #!/usr/bin/env bash
+        set -eo pipefail
+        
+        if [ "$PIPELINE_DEBUG" = "1" ]; then
+          set -x
+        fi
+        
+        echo "=================================================="
+        echo "📦 Installing Dependencies"
+        echo "=================================================="
+        
+        # Install system dependencies
+        apt-get update && apt-get install -y jq curl git wget tar gzip
+        
+        # Install Go
+        if ! command -v go &> /dev/null; then
+          echo "📥 Installing Go 1.21..."
+          wget -q https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+          tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+          export PATH=$PATH:/usr/local/go/bin
+        fi
+        
+        # Set Go environment
+        export GOPATH=$HOME/go
+        export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
+        
+        # Download Go dependencies
+        if [ -f "go.mod" ]; then
+          echo "📥 Downloading Go dependencies..."
+          go mod download
+        fi
+        
+        echo "✅ Dependencies installed successfully"
+
+# Made with Bob

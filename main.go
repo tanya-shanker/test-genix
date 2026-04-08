@@ -239,12 +239,14 @@ func overrideConfigFromEnv(config *types.Config) {
 	}
 	if repo := os.Getenv("FUNCTIONAL_TEST_REPO"); repo != "" {
 		config.FunctionalTestRepo = repo
-		fmt.Println("FUNCTIONAL TEST REPO FROM overrideConfigFromEnv", repo)
+		fmt.Println("✅ FUNCTIONAL_TEST_REPO configured:", repo)
 	} else if config.FunctionalTestRepo == "" {
 		// Warn if functional test repo is not configured
 		fmt.Println("⚠️  Warning: FUNCTIONAL_TEST_REPO environment variable not set")
 		fmt.Println("   Functional test PR creation will be skipped")
-		fmt.Println("   Set FUNCTIONAL_TEST_REPO to 'owner/repo' format (e.g., 'your-org/functional-tests')")
+		fmt.Println("   Set FUNCTIONAL_TEST_REPO to either:")
+		fmt.Println("     - 'owner/repo' format (e.g., 'your-org/functional-tests')")
+		fmt.Println("     - Full URL (e.g., 'https://github.com/your-org/functional-tests.git')")
 	}
 }
 

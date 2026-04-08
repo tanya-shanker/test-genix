@@ -55,7 +55,9 @@ func (pc *PRCreator) CreateFunctionalTestPR(testDir, sourceBranch, sourceCommit 
 	// Check if functional test repository is configured
 	if pc.functionalRepo == "" {
 		fmt.Println("ℹ️  Functional test repository not configured - skipping PR creation")
-		fmt.Println("   Set FUNCTIONAL_TEST_REPO environment variable to 'owner/repo' format")
+		fmt.Println("   Set FUNCTIONAL_TEST_REPO environment variable to:")
+		fmt.Println("     - 'owner/repo' format (e.g., 'your-org/functional-tests')")
+		fmt.Println("     - Full URL (e.g., 'https://github.com/your-org/functional-tests.git')")
 		return nil, nil
 	}
 
@@ -151,6 +153,13 @@ func (pc *PRCreator) prepareFunctionalTestRepo() (string, error) {
 
 // getFunctionalRepoURL constructs the functional test repository URL
 func (pc *PRCreator) getFunctionalRepoURL() string {
+	// If functionalRepo is already a full URL, return it as-is
+	if strings.HasPrefix(pc.functionalRepo, "http://") || strings.HasPrefix(pc.functionalRepo, "https://") {
+		// Remove trailing slash if present
+		return strings.TrimSuffix(pc.functionalRepo, "/")
+	}
+
+	// Otherwise, construct the URL from owner/repo format
 	if pc.config.GitHubEnterpriseURL != "" {
 		// GitHub Enterprise
 		return fmt.Sprintf("%s/%s.git", pc.config.GitHubEnterpriseURL, pc.functionalRepo)
@@ -294,12 +303,31 @@ func (pc *PRCreator) createGitHubPR(branchName, sourceBranch, sourceCommit strin
 	ctx := context.Background()
 
 	// Parse repository owner and name
-	parts := strings.Split(pc.functionalRepo, "/")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid repository format: %s", pc.functionalRepo)
+	var owner, repo string
+
+	// Check if functionalRepo is a full URL
+	if strings.HasPrefix(pc.functionalRepo, "http://") || strings.HasPrefix(pc.functionalRepo, "https://") {
+		// Extract owner/repo from URL
+		// Example: https://github.com/owner/repo.git -> owner/repo
+		repoURL := strings.TrimSuffix(pc.functionalRepo, "/")
+		repoURL = strings.TrimSuffix(repoURL, ".git")
+
+		// Split by "/" and get last two parts
+		parts := strings.Split(repoURL, "/")
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("invalid repository URL format: %s", pc.functionalRepo)
+		}
+		owner = parts[len(parts)-2]
+		repo = parts[len(parts)-1]
+	} else {
+		// Parse as owner/repo format
+		parts := strings.Split(pc.functionalRepo, "/")
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid repository format: %s (expected 'owner/repo' or full URL)", pc.functionalRepo)
+		}
+		owner = parts[0]
+		repo = parts[1]
 	}
-	owner := parts[0]
-	repo := parts[1]
 
 	// Create PR
 	title := fmt.Sprintf("🤖 Auto-generated functional tests from %s", sourceBranch)

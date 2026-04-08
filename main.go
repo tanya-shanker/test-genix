@@ -224,6 +224,10 @@ func overrideConfigFromEnv(config *types.Config) {
 	if apiKey := os.Getenv("BOB_API_KEY"); apiKey != "" {
 		config.AIAPIKey = apiKey
 	}
+	// Check for BOBSHELL_API_KEY (IBM Bob Shell)
+	if apiKey := os.Getenv("BOBSHELL_API_KEY"); apiKey != "" {
+		config.AIAPIKey = apiKey
+	}
 	// Check for CLAUDE_API_KEY as alternative
 	if apiKey := os.Getenv("CLAUDE_API_KEY"); apiKey != "" {
 		config.AIAPIKey = apiKey
@@ -247,6 +251,14 @@ func overrideConfigFromEnv(config *types.Config) {
 		fmt.Println("   Set FUNCTIONAL_TEST_REPO to either:")
 		fmt.Println("     - 'owner/repo' format (e.g., 'your-org/functional-tests')")
 		fmt.Println("     - Full URL (e.g., 'https://github.com/your-org/functional-tests.git')")
+	}
+
+	// Log AI API key status
+	if config.AIAPIKey != "" {
+		fmt.Printf("✅ AI API Key configured (length: %d chars)\n", len(config.AIAPIKey))
+	} else {
+		fmt.Println("⚠️  Warning: No AI API key found (checked BOBSHELL_API_KEY, BOB_API_KEY, ANTHROPIC_API_KEY, CLAUDE_API_KEY)")
+		fmt.Println("   AI-powered test generation will be disabled, using templates instead")
 	}
 }
 

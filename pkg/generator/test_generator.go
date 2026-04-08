@@ -259,8 +259,10 @@ func (tg *TestGenerator) generateFunctionalScenarios(change types.SemanticChange
 
 	// Try to generate AI-powered test if Bob client is available
 	if tg.aiClient != nil {
+		fmt.Printf("🤖 Generating AI-powered E2E test for %s using Bob/Claude...\n", change.Name)
 		aiTest, err := tg.generateE2ETestWithBob(change, language)
 		if err == nil && aiTest != "" {
+			fmt.Printf("✅ Successfully generated AI-powered E2E test for %s (%d chars)\n", change.Name, len(aiTest))
 			scenarios = append(scenarios, types.TestCase{
 				Name:        fmt.Sprintf("Test%s_E2E", tg.capitalize(change.Name)),
 				Description: fmt.Sprintf("End-to-end test for %s", change.Name),
@@ -271,6 +273,8 @@ func (tg *TestGenerator) generateFunctionalScenarios(change types.SemanticChange
 		}
 		// Fall back to template if AI generation fails
 		fmt.Printf("⚠️  AI test generation failed for %s, using template: %v\n", change.Name, err)
+	} else {
+		fmt.Printf("⚠️  Bob client not available (API key missing), using template for %s\n", change.Name)
 	}
 
 	// Fallback to template-based generation

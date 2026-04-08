@@ -170,6 +170,9 @@ spec:
         git clone https://github.com/tanya-shanker/test-genix.git "$TEMP_DIR/test-genix"
         cd "$TEMP_DIR/test-genix"
         
+        echo "***** FUNCTIONAL_TEST_REPO from environment variable *****"
+        echo "$FUNCTIONAL_TEST_REPO"
+
         # Build the orchestrator
         echo "🔨 Building test orchestrator..."
         go build -o /tmp/test-orchestrator .

@@ -239,6 +239,7 @@ func overrideConfigFromEnv(config *types.Config) {
 	}
 	if repo := os.Getenv("FUNCTIONAL_TEST_REPO"); repo != "" {
 		config.FunctionalTestRepo = repo
+		fmt.Println("FUNCTIONAL TEST REPO FROM overrideConfigFromEnv", repo)
 	} else if config.FunctionalTestRepo == "" {
 		// Warn if functional test repo is not configured
 		fmt.Println("⚠️  Warning: FUNCTIONAL_TEST_REPO environment variable not set")

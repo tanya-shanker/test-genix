@@ -1,0 +1,183 @@
+version: '1'
+
+# IBM Cloud OnePipeline Configuration for Intelligent Test Orchestrator
+# This pipeline integrates AI-powered test generation for every PR using Go
+
+setup:
+  image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+  script: |
+    #!/usr/bin/env bash
+    set -eo pipefail
+    
+    echo "Setting up Intelligent Test Orchestrator environment..."
+    
+    # Install Go if not present
+    if ! command -v go &> /dev/null; then
+      echo "Installing Go..."
+      wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+      tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+      export PATH=$PATH:/usr/local/go/bin
+    fi
+    
+    # Install required dependencies
+    apt-get update && apt-get install -y jq curl git
+    
+    # Set Go environment
+    export GOPATH=$HOME/go
+    export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
+    
+    # Download Go dependencies
+    go mod download
+    
+    echo "✅ Setup complete"
+
+test:
+  abort_on_failure: false
+  image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+  script: |
+    #!/usr/bin/env bash
+    set -eo pipefail
+    
+    echo "Running existing test suite..."
+    
+    # Set Go environment
+    export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+    
+    # Run existing tests to establish baseline coverage
+    if [ -f "go.mod" ]; then
+      go test ./... -v || true
+    fi
+
+ai-test-generation:
+  abort_on_failure: false
+  dind: true
+  image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+  script: |
+    #!/usr/bin/env bash
+    set -eo pipefail
+    
+    echo "=================================================="
+    echo "🤖 Intelligent Test Orchestrator - AI Test Generation"
+    echo "=================================================="
+    echo ""
+    
+    # Set Go environment
+    export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+    export GOPATH=$HOME/go
+    
+    # Check if this is a PR build
+    if [ -z "$GIT_COMMIT" ] || [ -z "$GIT_BRANCH" ]; then
+      echo "⚠️  Not a PR build - skipping AI test generation"
+      exit 0
+    fi
+    
+    echo "📊 PR Information:"
+    echo "   Branch: $GIT_BRANCH"
+    echo "   Commit: $GIT_COMMIT"
+    echo ""
+    
+    # Build the orchestrator
+    echo "🔨 Building test orchestrator..."
+    go build -o bin/orchestrator ./cmd/orchestrator
+    
+    if [ $? -ne 0 ]; then
+      echo "❌ Failed to build orchestrator"
+      exit 1
+    fi
+    
+    echo "✅ Build successful"
+    echo ""
+    
+    # Run AI Test Orchestrator
+    echo "🚀 Starting AI-powered test generation..."
+    
+    # Set base branch (default to main)
+    BASE_BRANCH="${BASE_BRANCH:-main}"
+    
+    # Run the orchestrator
+    ./bin/orchestrator \
+      --base "$BASE_BRANCH" \
+      --head "$GIT_BRANCH" \
+      --config "config/test-orchestrator-config.yaml" \
+      --output "generated-tests" \
+      --root "."
+    
+    # Check exit status
+    TEST_GEN_STATUS=$?
+    
+    if [ $TEST_GEN_STATUS -eq 0 ]; then
+      echo ""
+      echo "✅ AI test generation completed successfully"
+    else
+      echo ""
+      echo "⚠️  AI test generation completed with warnings (non-blocking)"
+    fi
+    
+    echo ""
+    echo "=================================================="
+    echo "📈 Test Coverage Summary"
+    echo "=================================================="
+    
+    # Display coverage report if available
+    if [ -f "coverage-report.json" ]; then
+      echo ""
+      cat coverage-report.json | jq -r '
+        "Before: \(.coverage_before)%",
+        "After:  \(.coverage_after)%",
+        "Change: \(.coverage_delta)%",
+        "",
+        "New Lines Covered: \(.new_lines_covered)/\(.new_lines_total)",
+        "Coverage Target: \(.coverage_target)%",
+        "Target Met: \(.target_met)"
+      '
+    else
+      echo "Coverage report not available"
+    fi
+    
+    echo ""
+    echo "=================================================="
+    echo "📋 Generation Summary"
+    echo "=================================================="
+    
+    # Display generation report if available
+    if [ -f "generated-tests/reports/generation-report.json" ]; then
+      echo ""
+      cat generated-tests/reports/generation-report.json | jq -r '
+        "Unit Tests Generated: \(.unit_tests_generated)",
+        "Functional Tests Generated: \(.functional_tests_generated)",
+        "Total Test Cases: \(.total_test_cases)",
+        "Files Processed: \(.files_processed)",
+        "Execution Time: \(.execution_time_seconds)s"
+      '
+    fi
+    
+    echo ""
+    echo "🔗 Generated artifacts available in pipeline logs"
+    echo "=================================================="
+    
+    # Archive generated tests as artifacts
+    if [ -d "generated-tests" ]; then
+      tar -czf generated-tests.tar.gz generated-tests/
+      echo "📦 Generated tests archived: generated-tests.tar.gz"
+    fi
+
+deploy:
+  image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+  script: |
+    #!/usr/bin/env bash
+    echo "Deploy stage - placeholder for deployment logic"
+
+# Pipeline environment variables (configure in IBM Cloud OnePipeline)
+# Required:
+#   - GIT_BRANCH: Current branch name
+#   - GIT_COMMIT: Current commit SHA
+#   - BASE_BRANCH: Base branch for comparison (default: main)
+#
+# Optional:
+#   - ANTHROPIC_API_KEY: Anthropic API key for Bob-enhanced test generation
+#   - GITHUB_TOKEN: GitHub token for creating PRs
+#   - GHE_TOKEN: GitHub Enterprise token
+#   - GITHUB_ENTERPRISE_URL: GitHub Enterprise URL
+#   - FUNCTIONAL_TEST_REPO: Repository for functional tests (e.g., "org/functional-tests")
+
+# Made with Bob

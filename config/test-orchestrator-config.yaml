@@ -1,0 +1,155 @@
+# Intelligent Test Orchestrator Configuration
+
+# Test frameworks for different languages
+test_frameworks:
+  go: "testing"
+  python: "pytest"
+  javascript: "jest"
+  typescript: "jest"
+  java: "junit"
+  ruby: "rspec"
+  php: "phpunit"
+
+# Coverage target percentage
+coverage_target: 80.0
+
+# Maximum number of test cases to generate per function
+max_tests_per_function: 5
+
+# Generate edge case tests
+generate_edge_cases: true
+
+# Generate mock objects for dependencies
+generate_mocks: true
+
+# Functional test repository (format: "owner/repo")
+# This is where functional tests will be committed via PR
+functional_test_repo: "your-org/functional-tests"
+
+# AI Model configuration (Bob/Claude)
+# Available models: claude-3-5-sonnet-20241022, claude-3-opus-20240229, claude-3-sonnet-20240229
+ai_model: "claude-3-5-sonnet-20241022"
+
+# AI API Key (can also be set via ANTHROPIC_API_KEY environment variable)
+# ai_api_key: "your-anthropic-api-key-here"
+
+# GitHub configuration
+# github_token: "your-github-token"  # Can also be set via GITHUB_TOKEN env var
+# github_enterprise_url: ""  # For GitHub Enterprise, e.g., "https://github.company.com"
+
+# Test naming patterns
+test_patterns:
+  unit: "test_{function_name}"
+  functional: "test_{feature_name}_e2e"
+
+# Test generation rules
+generation_rules:
+  # Minimum lines of code change to trigger test generation
+  min_lines_changed: 5
+  
+  # File patterns to include for test generation
+  include_patterns:
+    - "*.go"
+    - "*.py"
+    - "*.js"
+    - "*.ts"
+    - "*.java"
+  
+  # File patterns to exclude from test generation
+  exclude_patterns:
+    - "*_test.go"
+    - "test_*.py"
+    - "*.test.js"
+    - "*.spec.ts"
+    - "vendor/*"
+    - "node_modules/*"
+    - ".git/*"
+
+# Coverage analysis settings
+coverage:
+  # Enable coverage analysis
+  enabled: true
+  
+  # Coverage report format
+  report_format: "json"
+  
+  # Fail if coverage drops below threshold
+  fail_on_decrease: false
+  
+  # Minimum coverage increase required
+  min_coverage_increase: 0.0
+
+# PR creation settings
+pr_settings:
+  # Auto-assign reviewers
+  auto_assign_reviewers: true
+  
+  # Default reviewers (GitHub usernames)
+  default_reviewers:
+    - "team-lead"
+    - "senior-dev"
+  
+  # Add labels to generated PRs
+  labels:
+    - "automated-tests"
+    - "ai-generated"
+  
+  # PR title template
+  title_template: "🤖 Auto-generated tests for {branch}"
+  
+  # PR body template
+  body_template: |
+    ## Auto-Generated Tests
+    
+    This PR contains automatically generated tests based on code changes.
+    
+    **Source Branch:** {branch}
+    **Source Commit:** {commit}
+    
+    ### Generated Tests
+    - Unit Tests: {unit_count}
+    - Functional Tests: {functional_count}
+    
+    ### Coverage Impact
+    - Before: {coverage_before}%
+    - After: {coverage_after}%
+    - Change: {coverage_delta}%
+    
+    Please review the generated tests and merge if appropriate.
+
+# Notification settings
+notifications:
+  # Enable notifications
+  enabled: false
+  
+  # Slack webhook URL
+  # slack_webhook: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  
+  # Email notifications
+  # email_recipients:
+  #   - "team@company.com"
+
+# Advanced settings
+advanced:
+  # Parallel test generation
+  parallel_generation: true
+  
+  # Maximum parallel workers
+  max_workers: 4
+  
+  # Timeout for test generation (seconds)
+  generation_timeout: 300
+  
+  # Retry failed generations
+  retry_on_failure: true
+  
+  # Maximum retries
+  max_retries: 2
+  
+  # Cache AI responses
+  cache_ai_responses: true
+  
+  # Cache duration (hours)
+  cache_duration: 24
+
+# Made with Bob

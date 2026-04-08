@@ -1,0 +1,266 @@
+# Example: Microservice OnePipeline Configuration with AI Test Generation
+#
+# This is a complete example showing how to integrate the AI Test Generator
+# into an existing microservice's .one-pipeline.yaml file using IBM Bob Shell.
+#
+# Prerequisites:
+#   - Bob Shell installation: https://internal.bob.ibm.com/docs/shell/install-and-setup
+#   - BOBSHELL_API_KEY configured in pipeline environment variables
+#
+# Installation:
+#   curl -s https://s3.us-south.cloud-object-storage.appdomain.cloud/bobshell/install-bobshell.sh | bash
+#
+# Copy the 'ai-test-generation' step to your own pipeline configuration.
+
+version: '1'
+
+# ============================================================================
+# SETUP STAGE
+# ============================================================================
+setup:
+  image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+  script: |
+    #!/usr/bin/env bash
+    set -eo pipefail
+    
+    echo "🔧 Setting up microservice environment..."
+    
+    # Install common dependencies
+    apt-get update && apt-get install -y jq curl git
+    
+    # Language-specific setup
+    if [ -f "go.mod" ]; then
+      echo "📦 Go project detected - downloading dependencies..."
+      go mod download
+    elif [ -f "package.json" ]; then
+      echo "📦 Node.js project detected - installing dependencies..."
+      npm ci
+    elif [ -f "requirements.txt" ]; then
+      echo "📦 Python project detected - installing dependencies..."
+      pip install -r requirements.txt
+    elif [ -f "pom.xml" ]; then
+      echo "📦 Java project detected - downloading dependencies..."
+      mvn dependency:resolve
+    fi
+    
+    echo "✅ Setup complete"
+
+# ============================================================================
+# TEST STAGE - Run existing tests
+# ============================================================================
+test:
+  abort_on_failure: false
+  image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+  script: |
+    #!/usr/bin/env bash
+    set -eo pipefail
+    
+    echo "🧪 Running existing test suite..."
+    
+    # Run tests based on project type
+    if [ -f "go.mod" ]; then
+      echo "Running Go tests..."
+      go test ./... -v -coverprofile=coverage.out
+      go tool cover -func=coverage.out | tee coverage-summary.txt
+      
+    elif [ -f "package.json" ]; then
+      echo "Running Node.js tests..."
+      npm test -- --coverage --coverageReporters=text --coverageReporters=json
+      
+    elif [ -f "requirements.txt" ]; then
+      echo "Running Python tests..."
+      pytest --cov --cov-report=term --cov-report=json
+      
+    elif [ -f "pom.xml" ]; then
+      echo "Running Java tests..."
+      mvn test jacoco:report
+    fi
+    
+    echo "✅ Test suite complete"
+
+# ============================================================================
+# AI TEST GENERATION STAGE - Generate new tests with Bob
+# ============================================================================
+ai-test-generation:
+  abort_on_failure: false  # Non-blocking - won't fail the pipeline
+  dind: true
+  image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+  script: |
+    #!/usr/bin/env bash
+    set -eo pipefail
+    
+    echo "=================================================="
+    echo "🤖 AI Test Generation with Bob (Claude)"
+    echo "=================================================="
+    echo ""
+    
+    # Check if this is a PR build
+    if [ -z "$GIT_BRANCH" ]; then
+      echo "⚠️  Not a PR build - skipping AI test generation"
+      echo "   This step only runs for pull requests"
+      exit 0
+    fi
+    
+    # Display PR information
+    echo "📊 Pull Request Information:"
+    echo "   Repository: ${GITHUB_REPOSITORY:-$(git remote get-url origin)}"
+    echo "   Branch: $GIT_BRANCH"
+    echo "   Commit: ${GIT_COMMIT:-$(git rev-parse HEAD)}"
+    echo "   Base Branch: ${BASE_BRANCH:-main}"
+    echo ""
+    
+    # Check for API key
+    if [ -z "$BOB_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$CLAUDE_API_KEY" ]; then
+      echo "⚠️  No API key found - skipping AI test generation"
+      echo "   Please set one of: BOB_API_KEY, ANTHROPIC_API_KEY, CLAUDE_API_KEY"
+      exit 0
+    fi
+    
+    echo "✅ API key found - proceeding with test generation"
+    echo ""
+    
+    # Run AI test generator
+    echo "🚀 Starting AI-powered test generation..."
+    ./scripts/ai-test-generator.sh \
+      --base-branch "${BASE_BRANCH:-main}" \
+      --coverage-target "${COVERAGE_TARGET:-80}" \
+      --functional-repo "${FUNCTIONAL_TEST_REPO:-}"
+    
+    # Check exit status
+    TEST_GEN_STATUS=$?
+    
+    if [ $TEST_GEN_STATUS -eq 0 ]; then
+      echo ""
+      echo "✅ AI test generation completed successfully"
+    else
+      echo ""
+      echo "⚠️  AI test generation completed with warnings (non-blocking)"
+    fi
+    
+    # Display detailed summary
+    echo ""
+    echo "=================================================="
+    echo "📈 Test Coverage Summary"
+    echo "=================================================="
+    
+    if [ -f ".ai-generated-tests/coverage-report.json" ]; then
+      echo ""
+      cat .ai-generated-tests/coverage-report.json | jq -r '
+        "📊 Coverage Metrics:",
+        "  Before:  \(.coverage_before)%",
+        "  After:   \(.coverage_after)%",
+        "  Delta:   \(.coverage_delta)%",
+        "",
+        "🎯 Target Analysis:",
+        "  Target:  \(.coverage_target)%",
+        "  Met:     \(.target_met)",
+        "",
+        "📅 Generated: \(.timestamp)"
+      '
+    else
+      echo "⚠️  Coverage report not available"
+    fi
+    
+    echo ""
+    echo "=================================================="
+    echo "📋 Test Generation Details"
+    echo "=================================================="
+    
+    # Count generated test files
+    if [ -d ".ai-generated-tests" ]; then
+      UNIT_TESTS=$(find . -name "*_test.*" -o -name "test_*.*" -o -name "*.test.*" | wc -l)
+      echo ""
+      echo "📝 Generated Test Files: $UNIT_TESTS"
+      echo ""
+      echo "Test files created:"
+      find . -name "*_test.*" -o -name "test_*.*" -o -name "*.test.*" | head -10
+      
+      if [ $UNIT_TESTS -gt 10 ]; then
+        echo "... and $((UNIT_TESTS - 10)) more"
+      fi
+    fi
+    
+    echo ""
+    echo "=================================================="
+    echo "🔗 Artifacts & Next Steps"
+    echo "=================================================="
+    echo ""
+    echo "✅ Generated tests have been committed to this PR"
+    echo "✅ Coverage reports available in pipeline artifacts"
+    
+    if [ -n "$FUNCTIONAL_TEST_REPO" ]; then
+      echo "✅ Functional test PR created in $FUNCTIONAL_TEST_REPO"
+    fi
+    
+    echo ""
+    echo "📝 Please review the generated tests before merging"
+    echo "=================================================="
+
+# ============================================================================
+# BUILD STAGE
+# ============================================================================
+build:
+  image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+  script: |
+    #!/usr/bin/env bash
+    set -eo pipefail
+    
+    echo "🔨 Building application..."
+    
+    if [ -f "go.mod" ]; then
+      go build -o bin/app ./cmd/...
+    elif [ -f "package.json" ]; then
+      npm run build
+    elif [ -f "requirements.txt" ]; then
+      python setup.py build
+    elif [ -f "pom.xml" ]; then
+      mvn package
+    fi
+    
+    echo "✅ Build complete"
+
+# ============================================================================
+# DEPLOY STAGE
+# ============================================================================
+deploy:
+  image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+  script: |
+    #!/usr/bin/env bash
+    set -eo pipefail
+    
+    echo "🚀 Deploying application..."
+    
+    # Add your deployment logic here
+    # Examples:
+    # - kubectl apply -f k8s/
+    # - helm upgrade --install myapp ./charts/myapp
+    # - cf push
+    # - docker push
+    
+    echo "✅ Deployment complete"
+
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+# Configure these in your IBM Cloud OnePipeline settings:
+#
+# Required for AI Test Generation:
+#   BOB_API_KEY              - Your Bob/Anthropic API key
+#   (or ANTHROPIC_API_KEY or CLAUDE_API_KEY)
+#
+# Auto-set by Pipeline:
+#   GIT_BRANCH              - Current branch name
+#   GIT_COMMIT              - Current commit SHA
+#   GITHUB_REPOSITORY       - Repository name (org/repo)
+#
+# Optional Configuration:
+#   BASE_BRANCH             - Base branch for comparison (default: main)
+#   COVERAGE_TARGET         - Target coverage % (default: 80)
+#   FUNCTIONAL_TEST_REPO    - Repo for functional tests (e.g., org/func-tests)
+#   GITHUB_TOKEN            - GitHub token for creating PRs
+#   GHE_TOKEN               - GitHub Enterprise token
+#   GITHUB_ENTERPRISE_URL   - GitHub Enterprise URL
+#
+# ============================================================================
+
+# Made with Bob (Claude 3.5 Sonnet) 🤖

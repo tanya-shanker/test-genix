@@ -47,6 +47,8 @@ spec:
     description: Workspace for pipeline artifacts
   - name: tools-ws
     description: Workspace for shared tools and dependencies
+  - name: secrets
+    description: Workspace for secrets
 
   tasks:
   - name: setup
@@ -110,6 +112,8 @@ spec:
       workspace: pipeline-ws
     - name: tools-ws
       workspace: tools-ws
+    - name: secrets
+      workspace: secrets
 
   - name: static-scan
     runAfter:

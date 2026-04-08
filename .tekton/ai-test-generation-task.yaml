@@ -43,6 +43,8 @@ spec:
   workspaces:
     - name: output
       description: Workspace for pipeline artifacts
+    - name: tools-ws
+      description: Workspace for shared tools and dependencies
     - name: secrets
       description: Workspace for secrets
 
@@ -78,6 +80,9 @@ spec:
               key: token
               optional: true
       workingDir: $(workspaces.output.path)
+      volumeMounts:
+        - name: tools-ws
+          mountPath: /tools
       script: |
         #!/usr/bin/env bash
         set -eo pipefail
@@ -96,6 +101,16 @@ spec:
         echo "Commit: $GIT_COMMIT"
         echo "Base Branch: $BASE_BRANCH"
         echo ""
+        
+        # Use Go from shared tools workspace
+        GO_INSTALL_DIR="$(workspaces.tools-ws.path)/go"
+        export PATH="$GO_INSTALL_DIR/bin:$PATH"
+        export GOPATH="$(workspaces.tools-ws.path)/gopath"
+        export PATH="$GOPATH/bin:$PATH"
+        
+        echo "Go version: $(go version)"
+        echo "Go location: $GO_INSTALL_DIR"
+        echo "GOPATH: $GOPATH"
         
         # Make script executable
         chmod +x ./scripts/ai-test-generator.sh

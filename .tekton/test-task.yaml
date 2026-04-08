@@ -14,6 +14,8 @@ spec:
   workspaces:
     - name: output
       description: Workspace for pipeline artifacts
+    - name: tools-ws
+      description: Workspace for shared tools and dependencies
 
   steps:
     - name: run-tests
@@ -22,6 +24,9 @@ spec:
         - name: PIPELINE_DEBUG
           value: $(params.pipeline-debug)
       workingDir: $(workspaces.output.path)
+      volumeMounts:
+        - name: tools-ws
+          mountPath: /tools
       script: |
         #!/usr/bin/env bash
         set -eo pipefail
@@ -34,9 +39,15 @@ spec:
         echo "🧪 Running Existing Test Suite"
         echo "=================================================="
         
-        # Set Go environment
-        export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
-        export GOPATH=$HOME/go
+        # Use Go from shared tools workspace
+        GO_INSTALL_DIR="$(workspaces.tools-ws.path)/go"
+        export PATH="$GO_INSTALL_DIR/bin:$PATH"
+        export GOPATH="$(workspaces.tools-ws.path)/gopath"
+        export PATH="$GOPATH/bin:$PATH"
+        
+        echo "Go version: $(go version)"
+        echo "Go location: $GO_INSTALL_DIR"
+        echo "GOPATH: $GOPATH"
         
         # Run tests based on project type
         if [ -f "go.mod" ]; then

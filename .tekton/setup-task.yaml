@@ -23,6 +23,8 @@ spec:
   workspaces:
     - name: output
       description: Workspace for pipeline artifacts
+    - name: tools-ws
+      description: Workspace for shared tools and dependencies
 
   steps:
     - name: clone-repository
@@ -37,6 +39,9 @@ spec:
         - name: REVISION
           value: $(params.revision)
       workingDir: $(workspaces.output.path)
+      volumeMounts:
+        - name: tools-ws
+          mountPath: /tools
       script: |
         #!/usr/bin/env bash
         set -eo pipefail
@@ -84,6 +89,9 @@ spec:
         - name: PIPELINE_DEBUG
           value: $(params.pipeline-debug)
       workingDir: $(workspaces.output.path)
+      volumeMounts:
+        - name: tools-ws
+          mountPath: /tools
       script: |
         #!/usr/bin/env bash
         set -eo pipefail
@@ -93,23 +101,34 @@ spec:
         fi
         
         echo "=================================================="
-        echo "📦 Installing Dependencies"
+        echo "📦 Installing Dependencies to Shared Workspace"
         echo "=================================================="
         
         # Install system dependencies
         apt-get update && apt-get install -y jq curl git wget tar gzip
         
-        # Install Go
-        if ! command -v go &> /dev/null; then
-          echo "📥 Installing Go 1.21..."
+        # Install Go to shared tools workspace (accessible by all tasks)
+        GO_INSTALL_DIR="$(workspaces.tools-ws.path)/go"
+        if [ ! -d "$GO_INSTALL_DIR" ]; then
+          echo "📥 Installing Go 1.21 to shared tools workspace..."
+          mkdir -p "$(workspaces.tools-ws.path)"
           wget -q https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
-          tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
-          export PATH=$PATH:/usr/local/go/bin
+          tar -C "$(workspaces.tools-ws.path)" -xzf go1.21.0.linux-amd64.tar.gz
+          rm go1.21.0.linux-amd64.tar.gz
+          echo "✅ Go installed to $GO_INSTALL_DIR"
+        else
+          echo "✅ Go already installed in shared tools workspace"
         fi
         
         # Set Go environment
-        export GOPATH=$HOME/go
-        export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
+        export PATH="$GO_INSTALL_DIR/bin:$PATH"
+        export GOPATH="$(workspaces.tools-ws.path)/gopath"
+        export PATH="$GOPATH/bin:$PATH"
+        mkdir -p "$GOPATH"
+        
+        echo "Go version: $(go version)"
+        echo "Go location: $GO_INSTALL_DIR"
+        echo "GOPATH: $GOPATH"
         
         # Download Go dependencies
         if [ -f "go.mod" ]; then
@@ -117,6 +136,6 @@ spec:
           go mod download
         fi
         
-        echo "✅ Dependencies installed successfully"
+        echo "✅ Dependencies installed successfully to shared workspace"
 
 # Made with Bob

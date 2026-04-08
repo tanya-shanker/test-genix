@@ -45,6 +45,8 @@ spec:
   workspaces:
     - name: pipeline-ws
       description: Workspace for pipeline artifacts
+    - name: tools-ws
+      description: Workspace for shared tools and dependencies
     - name: secrets
       description: Workspace for secrets
 
@@ -64,6 +66,8 @@ spec:
       workspaces:
         - name: output
           workspace: pipeline-ws
+        - name: tools
+          workspace: tools-ws
 
     - name: test
       runAfter:
@@ -76,6 +80,8 @@ spec:
       workspaces:
         - name: output
           workspace: pipeline-ws
+        - name: tools
+          workspace: tools-ws
 
     - name: ai-test-generation
       runAfter:
@@ -104,6 +110,8 @@ spec:
       workspaces:
         - name: output
           workspace: pipeline-ws
+        - name: tools
+          workspace: tools-ws
         - name: secrets
           workspace: secrets
 

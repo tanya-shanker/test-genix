@@ -14,6 +14,8 @@ spec:
   workspaces:
     - name: output
       description: Workspace for pipeline artifacts
+    - name: tools-ws
+      description: Workspace for shared tools and dependencies
 
   steps:
     - name: static-analysis

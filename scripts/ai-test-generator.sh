@@ -503,8 +503,20 @@ create_functional_test_pr() {
   
   # Clone functional test repo
   local temp_repo="/tmp/functional-tests-$$"
-  git clone "https://${GITHUB_TOKEN}@github.com/${FUNCTIONAL_TEST_REPO}.git" "$temp_repo" 2>/dev/null || {
-    log_error "Failed to clone functional test repository"
+  local repo_url
+  
+  # Check if FUNCTIONAL_TEST_REPO is already a full URL
+  if [[ "$FUNCTIONAL_TEST_REPO" =~ ^https?:// ]]; then
+    # It's already a full URL, just add the token
+    repo_url="${FUNCTIONAL_TEST_REPO/https:\/\//https://${GITHUB_TOKEN}@}"
+    repo_url="${repo_url/http:\/\//http://${GITHUB_TOKEN}@}"
+  else
+    # It's in owner/repo format, construct the full URL
+    repo_url="https://${GITHUB_TOKEN}@github.com/${FUNCTIONAL_TEST_REPO}.git"
+  fi
+  
+  git clone "$repo_url" "$temp_repo" 2>/dev/null || {
+    log_error "Failed to clone functional test repository: $repo_url"
     return 1
   }
   

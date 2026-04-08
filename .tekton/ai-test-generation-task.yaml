@@ -100,15 +100,21 @@ spec:
       echo "Base Branch: $BASE_BRANCH"
       echo ""
 
-      # Check if secrets are loaded
-      if [ -n "$BOBSHELL_API_KEY" ]; then
-        echo "✅ Bob Shell API key loaded"
+      # Load secrets from mounted volumes (if available)
+      if [ -f "/secrets/bobshell/api-key" ]; then
+        export BOBSHELL_API_KEY=$(cat /secrets/bobshell/api-key)
+        echo "✅ Bob Shell API key loaded from volume"
+      elif [ -n "$BOBSHELL_API_KEY" ]; then
+        echo "✅ Bob Shell API key loaded from environment"
       else
-        echo "⚠️  Bob Shell API key not found (optional)"
+        echo "⚠️  bob key not found (optional)"
       fi
-
-      if [ -n "$GITHUB_TOKEN" ]; then
-        echo "✅ GitHub token loaded"
+      
+      if [ -f "/secrets/github/token" ]; then
+        export GITHUB_TOKEN=$(cat /secrets/github/token)
+        echo "✅ GitHub token loaded from volume"
+      elif [ -n "$GITHUB_TOKEN" ]; then
+        echo "✅ GitHub token loaded from environment"
       else
         echo "⚠️  GitHub token not found (optional)"
       fi
@@ -117,10 +123,49 @@ spec:
       # Set Go environment
       export PATH=$PATH:/usr/local/go/bin
 
-      # Check if Go is available
-      if ! command -v go &> /dev/null; then
-        echo "⚠️  Go not found, skipping test generation"
-        exit 0
+      echo "Go version: $(go version)"
+      echo "Go location: $GO_INSTALL_DIR"
+      echo "GOPATH: $GOPATH"
+      echo ""
+
+      # Check if test orchestrator scripts exist in current repo
+      pwd
+      ls -la
+      echo ""
+      if [ -f "./scripts/ai-test-generator.sh" ]; then
+        echo "📝 Using test orchestrator from current repository"
+        chmod +x ./scripts/ai-test-generator.sh
+        ./scripts/ai-test-generator.sh
+      else
+        echo "📥 Test orchestrator not found in current repo"
+        echo "   This is expected for repositories being tested"
+        echo ""
+        echo "🔧 Installing test-genix orchestrator..."
+        
+        # Clone test-genix repo to get the orchestrator
+        TEMP_DIR=$(mktemp -d)
+        git clone https://github.com/tanya-shanker/test-genix.git "$TEMP_DIR/test-genix"
+        cd "$TEMP_DIR/test-genix"
+        
+        # Build the orchestrator
+        echo "🔨 Building test orchestrator..."
+        go build -o /tmp/test-orchestrator ./cmd/orchestrator
+        
+        # Return to original directory
+        cd $(workspaces.output.path)
+        
+        # Run the orchestrator
+        echo "🚀 Running AI test generation..."
+        /tmp/test-orchestrator \
+          --repo="$REPOSITORY" \
+          --branch="$GIT_BRANCH" \
+          --commit="$GIT_COMMIT" \
+          --base-branch="$BASE_BRANCH" \
+          --coverage-target="$COVERAGE_TARGET" \
+          --functional-test-repo="$FUNCTIONAL_TEST_REPO"
+        
+        # Cleanup
+        rm -rf "$TEMP_DIR"
       fi
 
       echo "Go version: $(go version)"

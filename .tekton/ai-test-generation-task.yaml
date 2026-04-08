@@ -171,6 +171,13 @@ spec:
         echo "🔨 Building test orchestrator..."
         go build -o /tmp/test-orchestrator .
         
+        # Copy config file to workspace if it exists
+        if [ -f "config/test-orchestrator-config.yaml" ]; then
+          echo "📋 Copying config file..."
+          mkdir -p "$(workspaces.output.path)/config"
+          cp config/test-orchestrator-config.yaml "$(workspaces.output.path)/config/"
+        fi
+        
         # Return to original directory
         cd $(workspaces.output.path)
         
@@ -180,7 +187,33 @@ spec:
           -base="$BASE_BRANCH" \
           -head="$GIT_BRANCH" \
           -root="$(workspaces.output.path)" \
-          -output="$(workspaces.output.path)/generated-tests"
+          -output="$(workspaces.output.path)/generated-tests" \
+          -config="$(workspaces.output.path)/config/test-orchestrator-config.yaml" || true
+        
+        # Print coverage report if it exists
+        echo ""
+        echo "=================================================="
+        echo "📊 Test Coverage Report"
+        echo "=================================================="
+        REPORT_FILE="$(workspaces.output.path)/generated-tests/reports/coverage-report.json"
+        if [ -f "$REPORT_FILE" ]; then
+          echo "Coverage Report Contents:"
+          cat "$REPORT_FILE" | jq '.' || cat "$REPORT_FILE"
+          echo ""
+          
+          # Extract and display key metrics
+          if command -v jq &> /dev/null; then
+            echo "Summary:"
+            echo "  Before: $(cat "$REPORT_FILE" | jq -r '.coverage_before')%"
+            echo "  After:  $(cat "$REPORT_FILE" | jq -r '.coverage_after')%"
+            echo "  Delta:  $(cat "$REPORT_FILE" | jq -r '.coverage_delta')%"
+            echo "  Target: $(cat "$REPORT_FILE" | jq -r '.coverage_target')%"
+            echo "  Status: $(cat "$REPORT_FILE" | jq -r '.meets_target')"
+          fi
+        else
+          echo "⚠️  Coverage report not found at $REPORT_FILE"
+        fi
+        echo "=================================================="
         
         # Cleanup
         rm -rf "$TEMP_DIR"

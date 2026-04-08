@@ -116,9 +116,14 @@ func (ti *TestIntegrator) CommitTests(targetDir, branch, commit string) error {
 		return nil
 	}
 
-	// Configure git user
+	// Configure git user and authentication
 	if err := ti.configureGitUser(); err != nil {
 		return err
+	}
+
+	if err := ti.configureGitAuth(); err != nil {
+		fmt.Printf("⚠️  Could not configure git authentication: %v\n", err)
+		// Continue anyway - push might still work
 	}
 
 	// Add files
@@ -144,15 +149,14 @@ This commit adds automatically generated unit tests based on code changes detect
 	}
 
 	// Push to branch
+	fmt.Println("📤 Pushing tests to remote branch...")
 	cmd = exec.Command("git", "push", "origin", branch)
 	cmd.Dir = ti.projectRoot
 	if output, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("⚠️  Could not push to branch: %v\n%s", err, output)
-		// Non-fatal error
-	} else {
-		fmt.Println("✅ Tests committed and pushed successfully")
+		return fmt.Errorf("failed to push to branch: %w\nOutput: %s", err, output)
 	}
 
+	fmt.Println("✅ Tests committed and pushed successfully")
 	return nil
 }
 
@@ -397,6 +401,56 @@ func (ti *TestIntegrator) configureGitUser() error {
 		return fmt.Errorf("failed to set git user email: %w", err)
 	}
 
+	return nil
+}
+
+// configureGitAuth configures git authentication using GitHub token
+func (ti *TestIntegrator) configureGitAuth() error {
+	// Get GitHub token from environment
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		token = os.Getenv("GHE_TOKEN")
+	}
+
+	if token == "" {
+		return fmt.Errorf("no GitHub token found in environment")
+	}
+
+	// Get repository URL
+	cmd := exec.Command("git", "config", "--get", "remote.origin.url")
+	cmd.Dir = ti.projectRoot
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to get remote URL: %w", err)
+	}
+
+	remoteURL := strings.TrimSpace(string(output))
+
+	// Convert SSH URL to HTTPS if needed
+	if strings.HasPrefix(remoteURL, "git@") {
+		// Convert git@github.com:owner/repo.git to https://github.com/owner/repo.git
+		remoteURL = strings.Replace(remoteURL, ":", "/", 1)
+		remoteURL = strings.Replace(remoteURL, "git@", "https://", 1)
+	}
+
+	// Add token to URL if it's HTTPS
+	if strings.HasPrefix(remoteURL, "https://") {
+		// Extract host and path
+		parts := strings.SplitN(remoteURL, "://", 2)
+		if len(parts) == 2 {
+			// Insert token: https://token@host/path
+			remoteURL = fmt.Sprintf("%s://x-access-token:%s@%s", parts[0], token, parts[1])
+		}
+	}
+
+	// Update remote URL with authentication
+	cmd = exec.Command("git", "remote", "set-url", "origin", remoteURL)
+	cmd.Dir = ti.projectRoot
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set authenticated remote URL: %w", err)
+	}
+
+	fmt.Println("✅ Git authentication configured")
 	return nil
 }
 

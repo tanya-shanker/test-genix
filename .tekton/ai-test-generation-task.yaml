@@ -100,6 +100,20 @@ spec:
       echo "Base Branch: $BASE_BRANCH"
       echo ""
 
+      # Check if secrets are loaded
+      if [ -n "$BOBSHELL_API_KEY" ]; then
+        echo "✅ Bob Shell API key loaded"
+      else
+        echo "⚠️  Bob Shell API key not found (optional)"
+      fi
+
+      if [ -n "$GITHUB_TOKEN" ]; then
+        echo "✅ GitHub token loaded"
+      else
+        echo "⚠️  GitHub token not found (optional)"
+      fi
+      echo ""
+
       # Set Go environment
       export PATH=$PATH:/usr/local/go/bin
 

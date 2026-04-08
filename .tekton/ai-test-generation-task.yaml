@@ -23,10 +23,10 @@ spec:
     description: Target coverage percentage
     type: string
     default: "80"
-  - name: functional-test-repo
-    description: Functional test repository
-    type: string
-    default: ""
+  # - name: functional-test-repo
+  #   description: Functional test repository
+  #   type: string
+  #   default: ""
   - name: pipeline-debug
     description: Enable debug mode
     type: string
@@ -70,8 +70,13 @@ spec:
       value: $(params.base-branch)
     - name: COVERAGE_TARGET
       value: $(params.coverage-target)
+    # - name: FUNCTIONAL_TEST_REPO
+    #   value: $(params.functional-test-repo)
     - name: FUNCTIONAL_TEST_REPO
-      value: $(params.functional-test-repo)
+      valueFrom:
+        configMapKeyRef:
+          name: environment-properties
+          key: functional-test-repo
     - name: REPOSITORY
       value: $(params.repository)
     - name: BOBSHELL_API_KEY
@@ -111,6 +116,7 @@ spec:
       echo "Branch: $GIT_BRANCH"
       echo "Commit: $GIT_COMMIT"
       echo "Base Branch: $BASE_BRANCH"
+      echo "FUNCTIONAL_TEST_REPO: $FUNCTIONAL_TEST_REPO"
       echo ""
 
       # Load secrets from mounted volumes (if available)
@@ -134,6 +140,14 @@ spec:
         echo "❌ GITHUB_TOKEN not found"
         echo "   → Set this in IBM Cloud OnePipeline environment properties"
         echo "   → Git push operations will fail without it"
+      fi
+
+      # Export FUNCTIONAL_TEST_REPO if set
+      if [ -n "$FUNCTIONAL_TEST_REPO" ]; then
+        export FUNCTIONAL_TEST_REPO
+        echo "✅ Functional test repo: $FUNCTIONAL_TEST_REPO"
+      else
+        echo "⚠️  FUNCTIONAL_TEST_REPO not set - functional test PR creation will be skipped"
       fi
       echo ""
 

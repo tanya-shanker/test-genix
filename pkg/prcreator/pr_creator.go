@@ -131,18 +131,23 @@ func (pc *PRCreator) prepareFunctionalTestRepo() (string, error) {
 		return "", err
 	}
 
-	// Construct repository URL
-	repoURL := pc.getFunctionalRepoURL()
+	// Construct repository URL with authentication
+	repoURL := pc.getAuthenticatedRepoURL()
 
 	cmd := exec.Command("git", "clone", repoURL, repoPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("failed to clone repo: %w\n%s", err, output)
 	}
 
+	// Configure git to use token for future operations
+	if err := pc.configureGitAuth(repoPath); err != nil {
+		fmt.Printf("⚠️  Could not configure git authentication: %v\n", err)
+	}
+
 	return repoPath, nil
 }
 
-// getFunctionalRepoURL constructs the functional test repository URL
+// getFunctionalRepoURL constructs the functional test repository URL (without auth)
 func (pc *PRCreator) getFunctionalRepoURL() string {
 	if pc.config.GitHubEnterpriseURL != "" {
 		// GitHub Enterprise
@@ -150,6 +155,55 @@ func (pc *PRCreator) getFunctionalRepoURL() string {
 	}
 	// GitHub.com
 	return fmt.Sprintf("https://github.com/%s.git", pc.functionalRepo)
+}
+
+// getAuthenticatedRepoURL constructs the repository URL with authentication token
+func (pc *PRCreator) getAuthenticatedRepoURL() string {
+	token := pc.config.GitHubToken
+	if token == "" {
+		// Fallback to unauthenticated URL if no token
+		return pc.getFunctionalRepoURL()
+	}
+
+	if pc.config.GitHubEnterpriseURL != "" {
+		// GitHub Enterprise: https://x-access-token:TOKEN@ghe.example.com/org/repo.git
+		baseURL := strings.TrimPrefix(pc.config.GitHubEnterpriseURL, "https://")
+		baseURL = strings.TrimPrefix(baseURL, "http://")
+		return fmt.Sprintf("https://x-access-token:%s@%s/%s.git", token, baseURL, pc.functionalRepo)
+	}
+
+	// GitHub.com: https://x-access-token:TOKEN@github.com/org/repo.git
+	return fmt.Sprintf("https://x-access-token:%s@github.com/%s.git", token, pc.functionalRepo)
+}
+
+// configureGitAuth configures git authentication for the repository
+func (pc *PRCreator) configureGitAuth(repoPath string) error {
+	token := pc.config.GitHubToken
+	if token == "" {
+		return fmt.Errorf("no GitHub token available")
+	}
+
+	// Get current remote URL
+	cmd := exec.Command("git", "config", "--get", "remote.origin.url")
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to get remote URL: %w", err)
+	}
+
+	remoteURL := strings.TrimSpace(string(output))
+
+	// If URL doesn't have token, add it
+	if !strings.Contains(remoteURL, "x-access-token") {
+		authenticatedURL := pc.getAuthenticatedRepoURL()
+		cmd = exec.Command("git", "remote", "set-url", "origin", authenticatedURL)
+		cmd.Dir = repoPath
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to set authenticated remote URL: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // createBranch creates a new branch in the repository

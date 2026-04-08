@@ -49,9 +49,7 @@ Full-featured orchestrator with advanced capabilities for complex projects.
 
 ```
 test-genix/
-├── cmd/
-│   └── orchestrator/          # Main CLI application
-│       └── main.go
+├── main.go                    # Main CLI application
 ├── pkg/
 │   ├── types/                 # Shared type definitions
 │   │   └── types.go
@@ -137,7 +135,7 @@ go mod download
 3. Build the orchestrator:
 ```bash
 make build
-# or: go build -o bin/orchestrator ./cmd/orchestrator
+# or: go build -o bin/orchestrator .
 ```
 
 #### Configuration
@@ -384,7 +382,7 @@ go tool cover -html=coverage.out
 ### Building for Production
 
 ```bash
-CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o orchestrator ./cmd/orchestrator
+CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o orchestrator .
 ```
 
 ## 📝 Configuration Reference

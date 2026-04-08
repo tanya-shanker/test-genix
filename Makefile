@@ -5,7 +5,6 @@
 # Variables
 BINARY_NAME=orchestrator
 BUILD_DIR=bin
-CMD_DIR=cmd/orchestrator
 GO=go
 GOFLAGS=-v
 
@@ -34,14 +33,14 @@ deps:
 build: deps
 	@echo "🔨 Building orchestrator..."
 	@mkdir -p $(BUILD_DIR)
-	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
+	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) .
 	@echo "✅ Build complete: $(BUILD_DIR)/$(BINARY_NAME)"
 
 # Build for production (static binary)
 build-prod:
 	@echo "🔨 Building production binary..."
 	@mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=0 GOOS=linux $(GO) build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o $(BUILD_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
+	CGO_ENABLED=0 GOOS=linux $(GO) build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o $(BUILD_DIR)/$(BINARY_NAME) .
 	@echo "✅ Production build complete"
 
 # Run tests
@@ -77,7 +76,7 @@ clean:
 # Install the orchestrator
 install: build
 	@echo "📦 Installing orchestrator..."
-	$(GO) install ./$(CMD_DIR)
+	$(GO) install .
 	@echo "✅ Installation complete"
 
 # Run the orchestrator

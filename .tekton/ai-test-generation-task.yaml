@@ -166,7 +166,7 @@ spec:
         
         # Build the orchestrator
         echo "🔨 Building test orchestrator..."
-        go build -o /tmp/test-orchestrator ./cmd/orchestrator
+        go build -o /tmp/test-orchestrator .
         
         # Return to original directory
         cd $(workspaces.output.path)

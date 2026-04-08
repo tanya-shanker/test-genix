@@ -19,7 +19,7 @@ cd test-genix
 make build
 
 # Or build manually
-go build -o bin/orchestrator ./cmd/orchestrator
+go build -o bin/orchestrator .
 ```
 
 ## Step 2: Configure (Optional)

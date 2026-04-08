@@ -52,6 +52,13 @@ func NewPRCreator(config *types.Config, projectRoot string) *PRCreator {
 func (pc *PRCreator) CreateFunctionalTestPR(testDir, sourceBranch, sourceCommit string) (*types.PRCreationResult, error) {
 	fmt.Println("🔀 Creating PR for functional tests...")
 
+	// Check if functional test repository is configured
+	if pc.functionalRepo == "" {
+		fmt.Println("ℹ️  Functional test repository not configured - skipping PR creation")
+		fmt.Println("   Set FUNCTIONAL_TEST_REPO environment variable to 'owner/repo' format")
+		return nil, nil
+	}
+
 	// Check if functional tests were generated
 	if !pc.hasFunctionalTests(testDir) {
 		fmt.Println("ℹ️  No functional tests generated - skipping PR creation")

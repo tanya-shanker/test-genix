@@ -206,7 +206,7 @@ func getDefaultConfig() *types.Config {
 		MaxTestsPerFunction: 5,
 		GenerateEdgeCases:   true,
 		GenerateMocks:       true,
-		FunctionalTestRepo:  "functional-tests",
+		FunctionalTestRepo:  "", // Must be set via FUNCTIONAL_TEST_REPO environment variable
 		AIModel:             "gpt-4",
 		TestPatterns: types.TestPatterns{
 			Unit:       "test_{function_name}",
@@ -239,6 +239,11 @@ func overrideConfigFromEnv(config *types.Config) {
 	}
 	if repo := os.Getenv("FUNCTIONAL_TEST_REPO"); repo != "" {
 		config.FunctionalTestRepo = repo
+	} else if config.FunctionalTestRepo == "" {
+		// Warn if functional test repo is not configured
+		fmt.Println("⚠️  Warning: FUNCTIONAL_TEST_REPO environment variable not set")
+		fmt.Println("   Functional test PR creation will be skipped")
+		fmt.Println("   Set FUNCTIONAL_TEST_REPO to 'owner/repo' format (e.g., 'your-org/functional-tests')")
 	}
 }
 

@@ -1,6 +1,6 @@
 # Workspace Configuration Fix Summary
 
-## Date: 2026-04-08
+## Date: 2026-04-08 (Updated)
 
 ## Problem
 The Tekton pipeline was experiencing `TaskRunValidationFailed` errors preventing pipeline execution.
@@ -18,7 +18,7 @@ The Tekton pipeline was experiencing `TaskRunValidationFailed` errors preventing
 - This created confusion and potential for future errors
 - **Status**: ✅ Fixed in this commit
 
-## Changes Made
+## Changes Made (Part 1 - Initial Fix)
 
 ### 1. Cleaned Up static-scan-task.yaml
 **Before:**
@@ -76,24 +76,104 @@ Created two comprehensive guides:
 - Troubleshooting guide
 - Storage requirements table
 
-## Final Workspace Configuration
+## Changes Made (Part 2 - Secrets Workspace Removal)
 
-### Pipeline Level (3 workspaces)
+### Issue: Pod Initialization Failure
+**Error Message:**
+```
+pod status "Initialized":"False"
+message: "containers with incomplete status: [prepare place-scripts working-dir-initializer]"
+```
+
+**Root Cause:**
+The `ai-test-generation-task` was using BOTH methods for secrets:
+1. Secrets workspace declaration (line 48-49)
+2. secretKeyRef in environment variables (lines 70-81)
+
+This created a conflict during pod initialization because:
+- The task declared a `secrets` workspace
+- The pipeline provided the workspace
+- But the task was actually using `secretKeyRef` to access secrets
+- Tekton's init containers got confused trying to mount both
+
+**Solution:** Remove secrets workspace entirely and use only `secretKeyRef` (Tekton best practice)
+
+### 3. Removed Secrets Workspace from ai-test-generation-task.yaml
+**Before:**
+```yaml
+workspaces:
+  - name: output
+  - name: tools-ws
+  - name: secrets    # ❌ Conflicted with secretKeyRef
+```
+
+**After:**
+```yaml
+workspaces:
+  - name: output
+  - name: tools-ws
+```
+
+Secrets are now accessed only via `secretKeyRef`:
+```yaml
+env:
+  - name: BOBSHELL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: bobshell-api-key
+        key: api-key
+        optional: true
+```
+
+### 4. Updated pipeline.yaml
+Removed `secrets` workspace from:
+- Pipeline-level workspace declarations (lines 45-51)
+- ai-test-generation task workspace mapping (lines 110-116)
+
+### 5. Updated pr-trigger.yaml
+Removed secrets workspace provisioning (lines 117-119)
+
+### 6. Updated Documentation
+Updated WORKSPACE_GUIDE.md to reflect:
+- Only 2 workspaces (pipeline-ws, tools-ws)
+- Secrets managed via secretKeyRef
+- Best practices for Tekton secret management
+
+## Final Workspace Configuration (Updated)
+
+### Pipeline Level (2 workspaces)
 ```yaml
 workspaces:
   - name: pipeline-ws    # 1Gi - Source code and artifacts
   - name: tools-ws       # 500Mi - Shared tools (Go)
-  - name: secrets        # N/A - API keys from K8s secret
+```
+
+### Secrets Management
+Secrets are provided via Kubernetes `secretKeyRef` in environment variables:
+```yaml
+env:
+  - name: BOBSHELL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: bobshell-api-key
+        key: api-key
+        optional: true
+  - name: GITHUB_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: github-token
+        key: token
+        optional: true
 ```
 
 ### Task Level Usage
 
-| Task | Workspaces Used | Purpose |
-|------|----------------|---------|
-| setup-task | output, tools-ws | Clone repo, install Go |
-| test-task | output, tools-ws | Run tests using Go |
-| ai-test-generation-task | output, tools-ws, secrets | Generate tests with Bob API |
-| static-scan-task | output | Run linters on code |
+| Task | Workspaces Used | Secrets Method | Purpose |
+|------|----------------|----------------|---------|
+| setup-task | output, tools-ws | N/A | Clone repo, install Go |
+| test-task | output, tools-ws | N/A | Run tests using Go |
+| ai-test-generation-task | output, tools-ws | secretKeyRef | Generate tests with Bob API |
+| static-scan-task | output | N/A | Run linters on code |
 | deploy-task | output | Deploy artifacts |
 
 ## Benefits of This Fix
@@ -117,6 +197,12 @@ workspaces:
 - Shared tools workspace (tools-ws) avoids redundant installations
 - Go installed once in setup, used by test and AI generation tasks
 - Optimal storage allocation (1Gi for code, 500Mi for tools)
+- Secrets via secretKeyRef avoid unnecessary workspace mounts
+
+### 5. Best Practices
+- Following Tekton recommendations for secret management
+- Using `secretKeyRef` instead of secrets workspace
+- Marking secrets as `optional: true` for graceful degradation
 
 ## Verification Steps
 
@@ -162,12 +248,23 @@ To verify the fix works:
 
 ## Commit Information
 
+### Part 1: Initial Workspace Cleanup
 **Commit**: ddbcf54
 **Message**: fix: Clean up Tekton workspace configuration and add documentation
 **Files Changed**: 4 files, 393 insertions(+), 4 deletions(-)
 **New Files**:
 - `.tekton/TROUBLESHOOTING.md`
 - `.tekton/WORKSPACE_GUIDE.md`
+
+### Part 2: Secrets Workspace Removal
+**Commit**: [Pending]
+**Message**: fix: Remove secrets workspace and use secretKeyRef for API keys
+**Files Changed**: 4 files
+**Modified Files**:
+- `.tekton/ai-test-generation-task.yaml` - Removed secrets workspace
+- `.tekton/pipeline.yaml` - Removed secrets workspace declaration
+- `.tekton/pr-trigger.yaml` - Removed secrets workspace provisioning
+- `.tekton/WORKSPACE_GUIDE.md` - Updated documentation
 
 ## References
 

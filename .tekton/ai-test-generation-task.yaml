@@ -45,8 +45,6 @@ spec:
     description: Workspace for pipeline artifacts
   - name: tools-ws
     description: Workspace for shared tools and dependencies
-  - name: secrets
-    description: Workspace for secrets
 
   steps:
   - name: ai-test-generation

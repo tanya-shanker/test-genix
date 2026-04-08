@@ -8,14 +8,15 @@ This document explains the workspace configuration for the Intelligent Test Orch
 
 ### 1. Pipeline-Level Workspaces (pipeline.yaml)
 
-The pipeline defines three workspaces that are shared across tasks:
+The pipeline defines two workspaces that are shared across tasks:
 
 ```yaml
 workspaces:
   - name: pipeline-ws      # Main workspace for source code and artifacts
   - name: tools-ws         # Shared tools and dependencies
-  - name: secrets          # API keys and tokens
 ```
+
+**Note**: API keys and tokens are provided via Kubernetes `secretKeyRef` in environment variables, not via a workspace.
 
 ### 2. Workspace Provisioning (pr-trigger.yaml)
 
@@ -39,10 +40,9 @@ workspaces:
           requests:
             storage: 500Mi    # Go installation, dependencies
 
-  - name: secrets
-    secret:
-      secretName: pipeline-secrets  # API keys from Kubernetes secret
 ```
+
+**Note**: Secrets are now provided directly via `secretKeyRef` in task environment variables, eliminating the need for a secrets workspace.
 
 ## Workspace Usage by Task
 
@@ -78,22 +78,38 @@ workspaces:
 - Generates `coverage-before.out` in output workspace
 - Stores baseline coverage in `.coverage-before`
 
-### ✅ ai-test-generation-task (Lines 43-49 in ai-test-generation-task.yaml)
+### ✅ ai-test-generation-task (Lines 43-46 in ai-test-generation-task.yaml)
 ```yaml
 workspaces:
   - name: output      # Maps to pipeline-ws
   - name: tools-ws    # Access shared Go installation
-  - name: secrets     # Access API keys
 ```
 
 **Purpose:**
 - `output`: Access source code, generate tests, commit changes
 - `tools-ws`: Use Go installation from setup task
-- `secrets`: Read Bob Shell API key and GitHub token
+
+**Secrets Management:**
+API keys are provided via `secretKeyRef` in environment variables:
+```yaml
+env:
+  - name: BOBSHELL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: bobshell-api-key
+        key: api-key
+        optional: true
+  - name: GITHUB_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: github-token
+        key: token
+        optional: true
+```
 
 **Key Operations:**
 - Uses Go from tools-ws to build test orchestrator
-- Reads API keys from secrets workspace
+- Reads API keys from Kubernetes secrets via environment variables
 - Generates tests and commits to output workspace
 - Creates coverage comparison report
 
@@ -142,9 +158,9 @@ tasks:
         workspace: pipeline-ws
       - name: tools-ws
         workspace: tools-ws
-      - name: secrets
-        workspace: secrets        # Task's 'secrets' → Pipeline's 'secrets'
 ```
+
+**Note**: Secrets are provided via `secretKeyRef` in the task's environment variables, not via workspace mapping.
 
 ## Best Practices
 
@@ -183,22 +199,33 @@ The `tools-ws` workspace enables efficient tool sharing:
    ```
 
 ### 4. Secrets Management
-API keys and tokens are stored in Kubernetes secrets and mounted as workspace:
+API keys and tokens are stored in Kubernetes secrets and accessed via `secretKeyRef`:
 
 ```yaml
-# Create secret
-kubectl create secret generic pipeline-secrets \
-  --from-literal=api-key=your-bob-api-key \
+# Create secrets
+kubectl create secret generic bobshell-api-key \
+  --from-literal=api-key=your-bob-api-key
+
+kubectl create secret generic github-token \
   --from-literal=token=your-github-token
 
-# Access in task
+# Access in task environment variables
 env:
   - name: BOBSHELL_API_KEY
     valueFrom:
       secretKeyRef:
         name: bobshell-api-key
         key: api-key
+        optional: true
+  - name: GITHUB_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: github-token
+        key: token
+        optional: true
 ```
+
+This approach is cleaner than using a secrets workspace and follows Tekton best practices.
 
 ## Workspace Lifecycle
 
@@ -242,7 +269,8 @@ env:
 |-----------|------|---------|---------|
 | pipeline-ws | 1Gi | Source code, test results, coverage reports | After pipeline run |
 | tools-ws | 500Mi | Go installation, dependencies | After pipeline run |
-| secrets | N/A | API keys (from Kubernetes secret) | Persistent |
+
+**Note**: Secrets are managed via Kubernetes `secretKeyRef`, not via workspaces.
 
 ## Summary
 
@@ -250,8 +278,9 @@ The workspace configuration follows these principles:
 
 1. **Separation of Concerns**: Different workspaces for different purposes
 2. **Resource Efficiency**: Shared tools workspace avoids redundant installations
-3. **Security**: Secrets isolated in dedicated workspace
+3. **Security**: Secrets managed via Kubernetes secretKeyRef (not workspaces)
 4. **Clarity**: Clear naming and mapping between task and pipeline levels
 5. **Minimal Coupling**: Tasks only declare workspaces they actually use
+6. **Best Practices**: Following Tekton recommendations for secret management
 
 This design ensures efficient resource usage, clear data flow, and maintainable pipeline configuration.

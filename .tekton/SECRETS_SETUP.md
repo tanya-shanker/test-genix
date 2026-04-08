@@ -1,102 +1,67 @@
-# Secrets Setup Guide for Tekton Pipeline
+# Environment Variables Setup Guide for IBM Cloud OnePipeline
 
 ## Overview
 
-The AI Test Generation task requires two secrets to function:
-1. **Bob Shell API Key** - For AI-powered test generation
-2. **GitHub Token** - For creating PRs and accessing repositories
+The AI Test Generation pipeline requires two environment variables:
+1. **BOBSHELL_API_KEY** - For AI-powered test generation using IBM Bob Shell
+2. **GITHUB_TOKEN** - For creating PRs and pushing generated tests
 
-## How Secrets Are Mounted
+## How It Works
 
-### Current Configuration (secretKeyRef Method)
+The Tekton pipeline reads these values directly from **environment variables** that are set in IBM Cloud OnePipeline. No Kubernetes secrets are needed.
 
-Secrets are injected as environment variables using Kubernetes `secretKeyRef`:
+## Setting Up Environment Variables in IBM Cloud OnePipeline
 
-```yaml
-# In ai-test-generation-task.yaml
-env:
-  - name: BOBSHELL_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: bobshell-api-key    # Kubernetes secret name
-        key: api-key              # Key within the secret
-        optional: true            # Pod starts even if secret missing
-  
-  - name: GITHUB_TOKEN
-    valueFrom:
-      secretKeyRef:
-        name: github-token
-        key: token
-        optional: true
-```
+### Step 1: Access Your Pipeline Configuration
 
-**How It Works:**
-- Kubernetes automatically looks up the secret by name
-- Extracts the specified key value
-- Injects it as an environment variable in the container
-- **No workspace mounting needed** - this is the standard Tekton/K8s approach
+1. Log in to IBM Cloud Console
+2. Navigate to your Toolchain
+3. Click on your OnePipeline delivery pipeline
+4. Go to **Environment properties** or **Pipeline settings**
 
-## Creating Secrets in Your Cluster
+### Step 2: Add Secure Environment Properties
 
-### Prerequisites
-- Access to your Kubernetes cluster
-- `kubectl` configured with appropriate permissions
-- Your Bob Shell API key
-- Your GitHub personal access token
+Add these as **secure properties** (they will be masked in logs):
 
-### Step 1: Create Bob Shell API Key Secret
+| Property Name | Type | Description |
+|--------------|------|-------------|
+| `BOBSHELL_API_KEY` | Secure | Your IBM Bob Shell API key |
+| `GITHUB_TOKEN` | Secure | Your GitHub personal access token |
 
-```bash
-# Replace YOUR_BOB_API_KEY with your actual API key
-kubectl create secret generic bobshell-api-key \
-  --from-literal=api-key=YOUR_BOB_API_KEY \
-  --namespace=YOUR_NAMESPACE
+**To add a property:**
+1. Click "Add property" or "+"
+2. Select "Secure" as the type
+3. Enter the property name (e.g., `BOBSHELL_API_KEY`)
+4. Paste your API key/token value
+5. Click "Save"
 
-# Verify creation
-kubectl get secret bobshell-api-key -n YOUR_NAMESPACE
-kubectl describe secret bobshell-api-key -n YOUR_NAMESPACE
-```
+### Step 3: Optional Environment Properties
 
-### Step 2: Create GitHub Token Secret
+You can also configure these optional properties:
 
-```bash
-# Replace YOUR_GITHUB_TOKEN with your actual token
-kubectl create secret generic github-token \
-  --from-literal=token=YOUR_GITHUB_TOKEN \
-  --namespace=YOUR_NAMESPACE
+| Property Name | Type | Default | Description |
+|--------------|------|---------|-------------|
+| `BASE_BRANCH` | Text | main | Base branch for comparison |
+| `COVERAGE_TARGET` | Text | 80 | Target coverage percentage |
+| `FUNCTIONAL_TEST_REPO` | Text | - | Functional test repository URL |
+| `GITHUB_ENTERPRISE_URL` | Text | - | GitHub Enterprise URL (if using GHE) |
 
-# Verify creation
-kubectl get secret github-token -n YOUR_NAMESPACE
-kubectl describe secret github-token -n YOUR_NAMESPACE
-```
+## Getting Your API Keys
 
-### Step 3: Verify Secrets Are Available
+### Bob Shell API Key
 
-```bash
-# List all secrets in namespace
-kubectl get secrets -n YOUR_NAMESPACE
+1. Contact your IBM Cloud administrator or Bob Shell team
+2. Request an API key for AI test generation
+3. Copy the API key (it will look like: `sk-...`)
 
-# Should show:
-# NAME                TYPE     DATA   AGE
-# bobshell-api-key    Opaque   1      1m
-# github-token        Opaque   1      1m
-```
-
-## GitHub Token Permissions
-
-Your GitHub token needs these permissions:
-- `repo` - Full control of private repositories
-- `workflow` - Update GitHub Action workflows
-- `write:packages` - Upload packages to GitHub Package Registry (if needed)
-
-### Creating a GitHub Personal Access Token
+### GitHub Personal Access Token
 
 1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
 2. Click "Generate new token (classic)"
-3. Give it a descriptive name: "Tekton AI Test Generator"
+3. Give it a descriptive name: "IBM OnePipeline AI Test Generator"
 4. Select scopes:
-   - ✅ `repo` (all sub-scopes)
-   - ✅ `workflow`
+   - ✅ `repo` (all sub-scopes) - Required for pushing tests
+   - ✅ `workflow` - Required for PR operations
 5. Click "Generate token"
 6. **Copy the token immediately** (you won't see it again)
 

@@ -103,9 +103,9 @@ spec:
           - name: pipeline-debug
             value: "0"
           - name: bobshell-api-key-secret
-            value: "bobshell-api-key"
+            value: ""
           - name: github-token-secret
-            value: "github-token"
+            value: ""
           - name: functional-test-repo
             value: ""
           - name: coverage-target

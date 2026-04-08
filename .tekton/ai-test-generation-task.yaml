@@ -6,127 +6,124 @@ metadata:
     description: "AI-powered test generation using IBM Bob Shell"
 spec:
   params:
-    - name: repository
-      description: The git repository URL
-      type: string
-    - name: branch
-      description: The git branch
-      type: string
-    - name: revision
-      description: The git revision
-      type: string
-    - name: base-branch
-      description: Base branch for comparison
-      type: string
-      default: "main"
-    - name: coverage-target
-      description: Target coverage percentage
-      type: string
-      default: "80"
-    - name: functional-test-repo
-      description: Functional test repository
-      type: string
-      default: ""
-    - name: bobshell-api-key-secret
-      description: Secret name for Bob Shell API key
-      type: string
-      default: "bobshell-api-key"
-    - name: github-token-secret
-      description: Secret name for GitHub token
-      type: string
-      default: "github-token"
-    - name: pipeline-debug
-      description: Enable debug mode
-      type: string
-      default: "0"
+  - name: repository
+    description: The git repository URL
+    type: string
+  - name: branch
+    description: The git branch
+    type: string
+  - name: revision
+    description: The git revision
+    type: string
+  - name: base-branch
+    description: Base branch for comparison
+    type: string
+    default: "main"
+  - name: coverage-target
+    description: Target coverage percentage
+    type: string
+    default: "80"
+  - name: functional-test-repo
+    description: Functional test repository
+    type: string
+    default: ""
+  - name: bobshell-api-key-secret
+    description: Secret name for Bob Shell API key
+    type: string
+    default: "bobshell-api-key"
+  - name: github-token-secret
+    description: Secret name for GitHub token
+    type: string
+    default: "github-token"
+  - name: pipeline-debug
+    description: Enable debug mode
+    type: string
+    default: "0"
 
   workspaces:
-    - name: output
-      description: Workspace for pipeline artifacts
-    - name: tools-ws
-      description: Workspace for shared tools and dependencies
-    - name: secrets
-      description: Workspace for secrets
+  - name: output
+    description: Workspace for pipeline artifacts
+  - name: tools-ws
+    description: Workspace for shared tools and dependencies
+  - name: secrets
+    description: Workspace for secrets
 
   steps:
-    - name: ai-test-generation
-      image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
-      env:
-        - name: PIPELINE_DEBUG
-          value: $(params.pipeline-debug)
-        - name: GIT_BRANCH
-          value: $(params.branch)
-        - name: GIT_COMMIT
-          value: $(params.revision)
-        - name: BASE_BRANCH
-          value: $(params.base-branch)
-        - name: COVERAGE_TARGET
-          value: $(params.coverage-target)
-        - name: FUNCTIONAL_TEST_REPO
-          value: $(params.functional-test-repo)
-        - name: REPOSITORY
-          value: $(params.repository)
-        # API keys from secrets
-        - name: BOBSHELL_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: $(params.bobshell-api-key-secret)
-              key: api-key
-              optional: true
-        - name: GITHUB_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: $(params.github-token-secret)
-              key: token
-              optional: true
-      workingDir: $(workspaces.output.path)
-      volumeMounts:
-        - name: tools-ws
-          mountPath: /tools
-      script: |
-        #!/usr/bin/env bash
-        set -eo pipefail
-        
-        # Enable debug if requested
-        if [ "$PIPELINE_DEBUG" = "1" ]; then
-          set -x
-        fi
-        
-        echo "=================================================="
-        echo "🤖 AI Test Generation with Bob Shell"
-        echo "=================================================="
-        echo ""
-        echo "Repository: $REPOSITORY"
-        echo "Branch: $GIT_BRANCH"
-        echo "Commit: $GIT_COMMIT"
-        echo "Base Branch: $BASE_BRANCH"
-        echo ""
-        
-        # Use Go from shared tools workspace
-        GO_INSTALL_DIR="$(workspaces.tools-ws.path)/go"
-        export PATH="$GO_INSTALL_DIR/bin:$PATH"
-        export GOPATH="$(workspaces.tools-ws.path)/gopath"
-        export PATH="$GOPATH/bin:$PATH"
-        
-        echo "Go version: $(go version)"
-        echo "Go location: $GO_INSTALL_DIR"
-        echo "GOPATH: $GOPATH"
-        
-        # Make script executable
-        chmod +x ./scripts/ai-test-generator.sh
-        
-        # Run AI test generator
-        ./scripts/ai-test-generator.sh
-        
-        # Capture exit code
-        EXIT_CODE=$?
-        
-        echo ""
-        echo "=================================================="
-        echo "AI Test Generation Exit Code: $EXIT_CODE"
-        echo "=================================================="
-        
-        # Non-blocking: always exit 0
-        exit 0
+  - name: ai-test-generation
+    image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+    env:
+    - name: PIPELINE_DEBUG
+      value: $(params.pipeline-debug)
+    - name: GIT_BRANCH
+      value: $(params.branch)
+    - name: GIT_COMMIT
+      value: $(params.revision)
+    - name: BASE_BRANCH
+      value: $(params.base-branch)
+    - name: COVERAGE_TARGET
+      value: $(params.coverage-target)
+    - name: FUNCTIONAL_TEST_REPO
+      value: $(params.functional-test-repo)
+    - name: REPOSITORY
+      value: $(params.repository)
+    # API keys from secrets
+    - name: BOBSHELL_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: $(params.bobshell-api-key-secret)
+          key: api-key
+          optional: true
+    - name: GITHUB_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: $(params.github-token-secret)
+          key: token
+          optional: true
+    workingDir: $(workspaces.output.path)
+    script: |
+      #!/usr/bin/env bash
+      set -eo pipefail
+
+      # Enable debug if requested
+      if [ "$PIPELINE_DEBUG" = "1" ]; then
+        set -x
+      fi
+
+      echo "=================================================="
+      echo "🤖 AI Test Generation with Bob Shell"
+      echo "=================================================="
+      echo ""
+      echo "Repository: $REPOSITORY"
+      echo "Branch: $GIT_BRANCH"
+      echo "Commit: $GIT_COMMIT"
+      echo "Base Branch: $BASE_BRANCH"
+      echo ""
+
+      # Use Go from shared tools workspace
+      GO_INSTALL_DIR="$(workspaces.tools-ws.path)/go"
+      export PATH="$GO_INSTALL_DIR/bin:$PATH"
+      export GOPATH="$(workspaces.tools-ws.path)/gopath"
+      export PATH="$GOPATH/bin:$PATH"
+
+      echo "Go version: $(go version)"
+      echo "Go location: $GO_INSTALL_DIR"
+      echo "GOPATH: $GOPATH"
+
+      # Make script executable
+      chmod +x ./scripts/ai-test-generator.sh
+
+      # Run AI test generator
+      ./scripts/ai-test-generator.sh
+
+      # Capture exit code
+      EXIT_CODE=$?
+
+      echo ""
+      echo "=================================================="
+      echo "AI Test Generation Exit Code: $EXIT_CODE"
+      echo "=================================================="
+
+      # Non-blocking: always exit 0
+      exit 0
 
 # Made with Bob

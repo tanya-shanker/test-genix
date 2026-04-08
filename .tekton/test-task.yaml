@@ -6,72 +6,69 @@ metadata:
     description: "Run existing test suite"
 spec:
   params:
-    - name: pipeline-debug
-      description: Enable debug mode
-      type: string
-      default: "0"
+  - name: pipeline-debug
+    description: Enable debug mode
+    type: string
+    default: "0"
 
   workspaces:
-    - name: output
-      description: Workspace for pipeline artifacts
-    - name: tools-ws
-      description: Workspace for shared tools and dependencies
+  - name: output
+    description: Workspace for pipeline artifacts
+  - name: tools-ws
+    description: Workspace for shared tools and dependencies
 
   steps:
-    - name: run-tests
-      image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
-      env:
-        - name: PIPELINE_DEBUG
-          value: $(params.pipeline-debug)
-      workingDir: $(workspaces.output.path)
-      volumeMounts:
-        - name: tools-ws
-          mountPath: /tools
-      script: |
-        #!/usr/bin/env bash
-        set -eo pipefail
+  - name: run-tests
+    image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+    env:
+    - name: PIPELINE_DEBUG
+      value: $(params.pipeline-debug)
+    workingDir: $(workspaces.output.path)
+    script: |
+      #!/usr/bin/env bash
+      set -eo pipefail
+
+      if [ "$PIPELINE_DEBUG" = "1" ]; then
+        set -x
+      fi
+
+      echo "=================================================="
+      echo "🧪 Running Existing Test Suite"
+      echo "=================================================="
+
+      # Use Go from shared tools workspace
+      GO_INSTALL_DIR="$(workspaces.tools-ws.path)/go"
+      export PATH="$GO_INSTALL_DIR/bin:$PATH"
+      export GOPATH="$(workspaces.tools-ws.path)/gopath"
+      export PATH="$GOPATH/bin:$PATH"
+
+      echo "Go version: $(go version)"
+      echo "Go location: $GO_INSTALL_DIR"
+      echo "GOPATH: $GOPATH"
+
+      # Run tests based on project type
+      if [ -f "go.mod" ]; then
+        echo "Running Go tests..."
+        go test ./... -v -coverprofile=coverage-before.out || true
         
-        if [ "$PIPELINE_DEBUG" = "1" ]; then
-          set -x
+        if [ -f "coverage-before.out" ]; then
+          COVERAGE_BEFORE=$(go tool cover -func=coverage-before.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "📊 Baseline Coverage: ${COVERAGE_BEFORE}%"
+          echo "$COVERAGE_BEFORE" > .coverage-before
         fi
-        
-        echo "=================================================="
-        echo "🧪 Running Existing Test Suite"
-        echo "=================================================="
-        
-        # Use Go from shared tools workspace
-        GO_INSTALL_DIR="$(workspaces.tools-ws.path)/go"
-        export PATH="$GO_INSTALL_DIR/bin:$PATH"
-        export GOPATH="$(workspaces.tools-ws.path)/gopath"
-        export PATH="$GOPATH/bin:$PATH"
-        
-        echo "Go version: $(go version)"
-        echo "Go location: $GO_INSTALL_DIR"
-        echo "GOPATH: $GOPATH"
-        
-        # Run tests based on project type
-        if [ -f "go.mod" ]; then
-          echo "Running Go tests..."
-          go test ./... -v -coverprofile=coverage-before.out || true
-          
-          if [ -f "coverage-before.out" ]; then
-            COVERAGE_BEFORE=$(go tool cover -func=coverage-before.out | grep total | awk '{print $3}' | sed 's/%//')
-            echo "📊 Baseline Coverage: ${COVERAGE_BEFORE}%"
-            echo "$COVERAGE_BEFORE" > .coverage-before
-          fi
-        elif [ -f "package.json" ]; then
-          echo "Running npm tests..."
-          npm test || true
-        elif [ -f "requirements.txt" ] || [ -f "setup.py" ]; then
-          echo "Running Python tests..."
-          python -m pytest --cov || true
-        elif [ -f "pom.xml" ]; then
-          echo "Running Maven tests..."
-          mvn test || true
-        else
-          echo "⚠️  No test framework detected"
-        fi
-        
-        echo "✅ Test stage complete"
+      elif [ -f "package.json" ]; then
+        echo "Running npm tests..."
+        npm test || true
+      elif [ -f "requirements.txt" ] || [ -f "setup.py" ]; then
+        echo "Running Python tests..."
+        python -m pytest --cov || true
+      elif [ -f "pom.xml" ]; then
+        echo "Running Maven tests..."
+        mvn test || true
+      else
+        echo "⚠️  No test framework detected"
+      fi
+
+      echo "✅ Test stage complete"
 
 # Made with Bob

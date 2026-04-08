@@ -6,136 +6,130 @@ metadata:
     description: "Setup environment for test orchestrator"
 spec:
   params:
-    - name: repository
-      description: The git repository URL
-      type: string
-    - name: branch
-      description: The git branch
-      type: string
-    - name: revision
-      description: The git revision
-      type: string
-    - name: pipeline-debug
-      description: Enable debug mode
-      type: string
-      default: "0"
+  - name: repository
+    description: The git repository URL
+    type: string
+  - name: branch
+    description: The git branch
+    type: string
+  - name: revision
+    description: The git revision
+    type: string
+  - name: pipeline-debug
+    description: Enable debug mode
+    type: string
+    default: "0"
 
   workspaces:
-    - name: output
-      description: Workspace for pipeline artifacts
-    - name: tools-ws
-      description: Workspace for shared tools and dependencies
+  - name: output
+    description: Workspace for pipeline artifacts
+  - name: tools-ws
+    description: Workspace for shared tools and dependencies
 
   steps:
-    - name: clone-repository
-      image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
-      env:
-        - name: PIPELINE_DEBUG
-          value: $(params.pipeline-debug)
-        - name: REPOSITORY
-          value: $(params.repository)
-        - name: BRANCH
-          value: $(params.branch)
-        - name: REVISION
-          value: $(params.revision)
-      workingDir: $(workspaces.output.path)
-      volumeMounts:
-        - name: tools-ws
-          mountPath: /tools
-      script: |
-        #!/usr/bin/env bash
-        set -eo pipefail
-        
-        if [ "$PIPELINE_DEBUG" = "1" ]; then
-          set -x
-        fi
-        
-        echo "=================================================="
-        echo "🔧 Setup: Preparing Repository"
-        echo "=================================================="
-        
-        pwd
-        ls
-        # Check if repository is already cloned
-        if [ -d ".git" ]; then
-          echo "Repository already exists, fetching latest changes..."
-          git fetch origin
-          git checkout "$BRANCH"
-          git pull origin "$BRANCH"
-        else
-          # Check if directory has any files
-          if [ "$(ls -A .)" ]; then
-            echo "Workspace not empty, cleaning up..."
-            # Remove all files except hidden ones that might be needed
-            find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.*' -exec rm -rf {} +
-          fi
-          
-          echo "Cloning repository..."
-          git clone "$REPOSITORY" .
-          git checkout "$BRANCH"
-        fi
-        
-        # Checkout specific revision if provided
-        if [ -n "$REVISION" ] && [ "$REVISION" != "" ]; then
-          echo "Checking out revision: $REVISION"
-          git checkout "$REVISION"
-        fi
-        
-        echo "✅ Repository prepared successfully"
+  - name: clone-repository
+    image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+    env:
+    - name: PIPELINE_DEBUG
+      value: $(params.pipeline-debug)
+    - name: REPOSITORY
+      value: $(params.repository)
+    - name: BRANCH
+      value: $(params.branch)
+    - name: REVISION
+      value: $(params.revision)
+    workingDir: $(workspaces.output.path)
+    script: |
+      #!/usr/bin/env bash
+      set -eo pipefail
 
-    - name: install-dependencies
-      image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
-      env:
-        - name: PIPELINE_DEBUG
-          value: $(params.pipeline-debug)
-      workingDir: $(workspaces.output.path)
-      volumeMounts:
-        - name: tools-ws
-          mountPath: /tools
-      script: |
-        #!/usr/bin/env bash
-        set -eo pipefail
-        
-        if [ "$PIPELINE_DEBUG" = "1" ]; then
-          set -x
+      if [ "$PIPELINE_DEBUG" = "1" ]; then
+        set -x
+      fi
+
+      echo "=================================================="
+      echo "🔧 Setup: Preparing Repository"
+      echo "=================================================="
+
+      pwd
+      ls
+      # Check if repository is already cloned
+      if [ -d ".git" ]; then
+        echo "Repository already exists, fetching latest changes..."
+        git fetch origin
+        git checkout "$BRANCH"
+        git pull origin "$BRANCH"
+      else
+        # Check if directory has any files
+        if [ "$(ls -A .)" ]; then
+          echo "Workspace not empty, cleaning up..."
+          # Remove all files except hidden ones that might be needed
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.*' -exec rm -rf {} +
         fi
         
-        echo "=================================================="
-        echo "📦 Installing Dependencies to Shared Workspace"
-        echo "=================================================="
-        
-        # Install system dependencies
-        apt-get update && apt-get install -y jq curl git wget tar gzip
-        
-        # Install Go to shared tools workspace (accessible by all tasks)
-        GO_INSTALL_DIR="$(workspaces.tools-ws.path)/go"
-        if [ ! -d "$GO_INSTALL_DIR" ]; then
-          echo "📥 Installing Go 1.21 to shared tools workspace..."
-          mkdir -p "$(workspaces.tools-ws.path)"
-          wget -q https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
-          tar -C "$(workspaces.tools-ws.path)" -xzf go1.21.0.linux-amd64.tar.gz
-          rm go1.21.0.linux-amd64.tar.gz
-          echo "✅ Go installed to $GO_INSTALL_DIR"
-        else
-          echo "✅ Go already installed in shared tools workspace"
-        fi
-        
-        # Set Go environment
-        export PATH="$GO_INSTALL_DIR/bin:$PATH"
-        export GOPATH="$(workspaces.tools-ws.path)/gopath"
-        export PATH="$GOPATH/bin:$PATH"
-        mkdir -p "$GOPATH"
-        
-        echo "Go version: $(go version)"
-        echo "Go location: $GO_INSTALL_DIR"
-        echo "GOPATH: $GOPATH"
-        
-        # Download Go dependencies
-        if [ -f "go.mod" ]; then
-          echo "📥 Downloading Go dependencies..."
-          go mod download
-        fi
-        
-        echo "✅ Dependencies installed successfully to shared workspace"
+        echo "Cloning repository..."
+        git clone "$REPOSITORY" .
+        git checkout "$BRANCH"
+      fi
+
+      # Checkout specific revision if provided
+      if [ -n "$REVISION" ] && [ "$REVISION" != "" ]; then
+        echo "Checking out revision: $REVISION"
+        git checkout "$REVISION"
+      fi
+
+      echo "✅ Repository prepared successfully"
+
+  - name: install-dependencies
+    image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
+    env:
+    - name: PIPELINE_DEBUG
+      value: $(params.pipeline-debug)
+    workingDir: $(workspaces.output.path)
+    script: |
+      #!/usr/bin/env bash
+      set -eo pipefail
+
+      if [ "$PIPELINE_DEBUG" = "1" ]; then
+        set -x
+      fi
+
+      echo "=================================================="
+      echo "📦 Installing Dependencies to Shared Workspace"
+      echo "=================================================="
+
+      # Install system dependencies
+      apt-get update && apt-get install -y jq curl git wget tar gzip
+
+      # Install Go to shared tools workspace (accessible by all tasks)
+      GO_INSTALL_DIR="$(workspaces.tools-ws.path)/go"
+      if [ ! -d "$GO_INSTALL_DIR" ]; then
+        echo "📥 Installing Go 1.21 to shared tools workspace..."
+        mkdir -p "$(workspaces.tools-ws.path)"
+        wget -q https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+        tar -C "$(workspaces.tools-ws.path)" -xzf go1.21.0.linux-amd64.tar.gz
+        rm go1.21.0.linux-amd64.tar.gz
+        echo "✅ Go installed to $GO_INSTALL_DIR"
+      else
+        echo "✅ Go already installed in shared tools workspace"
+      fi
+
+      # Set Go environment
+      export PATH="$GO_INSTALL_DIR/bin:$PATH"
+      export GOPATH="$(workspaces.tools-ws.path)/gopath"
+      export PATH="$GOPATH/bin:$PATH"
+      mkdir -p "$GOPATH"
+
+      echo "Go version: $(go version)"
+      echo "Go location: $GO_INSTALL_DIR"
+      echo "GOPATH: $GOPATH"
+
+      # Download Go dependencies
+      if [ -f "go.mod" ]; then
+        echo "📥 Downloading Go dependencies..."
+        go mod download
+      fi
+
+      echo "✅ Dependencies installed successfully to shared workspace"
 
 # Made with Bob

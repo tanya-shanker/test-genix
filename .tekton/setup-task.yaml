@@ -49,6 +49,8 @@ spec:
         echo "🔧 Setup: Preparing Repository"
         echo "=================================================="
         
+        pwd
+        ls
         # Check if repository is already cloned
         if [ -d ".git" ]; then
           echo "Repository already exists, fetching latest changes..."
@@ -56,6 +58,13 @@ spec:
           git checkout "$BRANCH"
           git pull origin "$BRANCH"
         else
+          # Check if directory has any files
+          if [ "$(ls -A .)" ]; then
+            echo "Workspace not empty, cleaning up..."
+            # Remove all files except hidden ones that might be needed
+            find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.*' -exec rm -rf {} +
+          fi
+          
           echo "Cloning repository..."
           git clone "$REPOSITORY" .
           git checkout "$BRANCH"

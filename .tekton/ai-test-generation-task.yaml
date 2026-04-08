@@ -146,6 +146,9 @@ spec:
       echo ""
 
       # Check if test orchestrator scripts exist in current repo
+      pwd
+      ls -la
+      echo ""
       if [ -f "./scripts/ai-test-generator.sh" ]; then
         echo "📝 Using test orchestrator from current repository"
         chmod +x ./scripts/ai-test-generator.sh

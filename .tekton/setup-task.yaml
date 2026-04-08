@@ -46,18 +46,28 @@ spec:
         fi
         
         echo "=================================================="
-        echo "🔧 Setup: Cloning Repository"
+        echo "🔧 Setup: Preparing Repository"
         echo "=================================================="
         
-        # Clone repository
-        git clone "$REPOSITORY" .
-        git checkout "$BRANCH"
+        # Check if repository is already cloned
+        if [ -d ".git" ]; then
+          echo "Repository already exists, fetching latest changes..."
+          git fetch origin
+          git checkout "$BRANCH"
+          git pull origin "$BRANCH"
+        else
+          echo "Cloning repository..."
+          git clone "$REPOSITORY" .
+          git checkout "$BRANCH"
+        fi
         
-        if [ -n "$REVISION" ]; then
+        # Checkout specific revision if provided
+        if [ -n "$REVISION" ] && [ "$REVISION" != "" ]; then
+          echo "Checking out revision: $REVISION"
           git checkout "$REVISION"
         fi
         
-        echo "✅ Repository cloned successfully"
+        echo "✅ Repository prepared successfully"
 
     - name: install-dependencies
       image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71

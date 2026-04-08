@@ -181,7 +181,7 @@ spec:
         
         # Clone test-genix repo to get the orchestrator
         TEMP_DIR=$(mktemp -d)
-        git clone https://github.com/tanya-shanker/test-genix.git "$TEMP_DIR/test-genix"
+        git clone -b my-exp https://github.com/tanya-shanker/test-genix.git "$TEMP_DIR/test-genix"
         cd "$TEMP_DIR/test-genix"
         
         echo "***** FUNCTIONAL_TEST_REPO from environment variable *****"

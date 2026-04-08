@@ -8,23 +8,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tanya-shanker/test-genix/pkg/anthropic"
+	"github.com/tanya-shanker/test-genix/pkg/bobshell"
 	"github.com/tanya-shanker/test-genix/pkg/types"
 )
 
 // TestGenerator generates tests using AI/LLM capabilities
 type TestGenerator struct {
 	config      *types.Config
-	aiClient    *anthropic.Client
+	aiClient    *bobshell.Client
 	stats       *types.GenerationStats
 	projectRoot string
 }
 
 // NewTestGenerator creates a new test generator
 func NewTestGenerator(config *types.Config, projectRoot string) *TestGenerator {
-	var client *anthropic.Client
+	var client *bobshell.Client
 	if config.AIAPIKey != "" {
-		client = anthropic.NewClient(config.AIAPIKey)
+		client = bobshell.NewClient(config.AIAPIKey)
 	}
 
 	return &TestGenerator{
@@ -320,10 +320,10 @@ Language: %s
 
 Provide test code in %s format.`, sourceCode, fn.Name, fn.Language, fn.Language)
 
-	message, err := tg.aiClient.CreateMessage(anthropic.MessageRequest{
+	message, err := tg.aiClient.CreateMessage(bobshell.MessageRequest{
 		Model:     tg.config.AIModel,
 		MaxTokens: 2000,
-		Messages: []anthropic.Message{
+		Messages: []bobshell.Message{
 			{
 				Role:    "user",
 				Content: prompt,
@@ -383,10 +383,10 @@ func (tg *TestGenerator) generateE2ETestWithBob(change types.SemanticChange, lan
 Provide ONLY the test function code without any markdown formatting, explanations, or package/import statements.`,
 		change.Type, change.Name, change.File, change.Impact, sourceCode, language, language)
 
-	message, err := tg.aiClient.CreateMessage(anthropic.MessageRequest{
+	message, err := tg.aiClient.CreateMessage(bobshell.MessageRequest{
 		Model:     tg.config.AIModel,
 		MaxTokens: 3000,
-		Messages: []anthropic.Message{
+		Messages: []bobshell.Message{
 			{
 				Role:    "user",
 				Content: prompt,

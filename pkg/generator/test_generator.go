@@ -257,6 +257,23 @@ func (tg *TestGenerator) generateTestCasesForMethod(className, methodName, langu
 func (tg *TestGenerator) generateFunctionalScenarios(change types.SemanticChange, language string) []types.TestCase {
 	scenarios := []types.TestCase{}
 
+	// Try to generate AI-powered test if Bob client is available
+	if tg.aiClient != nil {
+		aiTest, err := tg.generateE2ETestWithBob(change, language)
+		if err == nil && aiTest != "" {
+			scenarios = append(scenarios, types.TestCase{
+				Name:        fmt.Sprintf("Test%s_E2E", tg.capitalize(change.Name)),
+				Description: fmt.Sprintf("End-to-end test for %s", change.Name),
+				Type:        "e2e",
+				Code:        aiTest,
+			})
+			return scenarios
+		}
+		// Fall back to template if AI generation fails
+		fmt.Printf("⚠️  AI test generation failed for %s, using template: %v\n", change.Name, err)
+	}
+
+	// Fallback to template-based generation
 	scenarios = append(scenarios, types.TestCase{
 		Name:        fmt.Sprintf("Test%s_E2E", tg.capitalize(change.Name)),
 		Description: fmt.Sprintf("End-to-end test for %s", change.Name),
@@ -328,6 +345,70 @@ Provide test code in %s format.`, sourceCode, fn.Name, fn.Language, fn.Language)
 	}
 
 	return testCases, nil
+}
+
+// generateE2ETestWithBob uses Bob (Claude) to generate E2E tests based on semantic changes
+func (tg *TestGenerator) generateE2ETestWithBob(change types.SemanticChange, language string) (string, error) {
+	// Read the source file to get context
+	sourceCode, err := tg.readSourceFile(change.File)
+	if err != nil {
+		sourceCode = fmt.Sprintf("// File: %s\n// Unable to read source code", change.File)
+	}
+
+	prompt := fmt.Sprintf(`You are Bob, an expert software testing engineer. Generate a comprehensive end-to-end (E2E) functional test for the following code change:
+
+**Change Type:** %s
+**Component Name:** %s
+**File:** %s
+**Impact:** %s
+
+**Source Code Context:**
+%s
+
+**Requirements:**
+1. Generate a complete, runnable E2E test function in %s
+2. The test should cover the full workflow from setup to cleanup
+3. Include realistic test data and assertions
+4. Test should validate the end-to-end behavior of the feature
+5. Include proper error handling and edge cases
+6. Use the standard testing framework for %s
+7. DO NOT include package declaration or imports - only the test function
+8. Make the test production-ready with meaningful assertions
+
+**Output Format:**
+Provide ONLY the test function code without any markdown formatting, explanations, or package/import statements.`,
+		change.Type, change.Name, change.File, change.Impact, sourceCode, language, language)
+
+	message, err := tg.aiClient.CreateMessage(anthropic.MessageRequest{
+		Model:     tg.config.AIModel,
+		MaxTokens: 3000,
+		Messages: []anthropic.Message{
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		System: "You are Bob, an expert software testing engineer specializing in end-to-end test generation. Generate production-ready, comprehensive E2E tests based on code changes.",
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("failed to generate E2E test with Bob: %w", err)
+	}
+
+	generatedCode := message.ExtractText()
+
+	// Clean up the generated code (remove markdown code blocks if present)
+	generatedCode = strings.TrimSpace(generatedCode)
+	generatedCode = strings.TrimPrefix(generatedCode, "```go")
+	generatedCode = strings.TrimPrefix(generatedCode, "```")
+	generatedCode = strings.TrimSuffix(generatedCode, "```")
+	generatedCode = strings.TrimSpace(generatedCode)
+
+	if generatedCode == "" {
+		return "", fmt.Errorf("Bob generated empty test code")
+	}
+
+	return generatedCode, nil
 }
 
 // Template generation methods for different test types

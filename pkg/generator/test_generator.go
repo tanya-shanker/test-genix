@@ -45,43 +45,72 @@ func NewTestGenerator(config *types.Config, projectRoot string) *TestGenerator {
 func (tg *TestGenerator) GenerateTests(changes *types.ChangeInfo, unitOutputDir, functionalOutputDir string) (*types.GenerationStats, error) {
 	startTime := time.Now()
 
-	fmt.Println("🤖 Generating AI-powered tests with Bob (Claude)...")
+	fmt.Println("🤖 Generating AI-powered tests with Bob Shell CLI...")
+	fmt.Printf("📊 Summary: %d functions, %d classes, %d semantic changes, %d modules\n",
+		len(changes.ModifiedFunctions), len(changes.ModifiedClasses),
+		len(changes.SemanticChanges), len(changes.AffectedModules))
 
 	// Create output directories
+	fmt.Println("📁 Creating output directories...")
 	if err := os.MkdirAll(unitOutputDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create unit output dir: %w", err)
 	}
 	if err := os.MkdirAll(functionalOutputDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create functional output dir: %w", err)
 	}
+	fmt.Println("✅ Output directories created")
 
 	// Generate unit tests for modified functions
-	for _, fn := range changes.ModifiedFunctions {
+	fmt.Printf("\n🔨 Generating unit tests for %d modified functions...\n", len(changes.ModifiedFunctions))
+	for i, fn := range changes.ModifiedFunctions {
+		fmt.Printf("  [%d/%d] Processing function: %s (file: %s)\n", i+1, len(changes.ModifiedFunctions), fn.Name, fn.File)
 		if err := tg.generateUnitTestsForFunction(fn, unitOutputDir); err != nil {
-			fmt.Printf("⚠️  Failed to generate tests for function %s: %v\n", fn.Name, err)
+			fmt.Printf("  ⚠️  Failed to generate tests for function %s: %v\n", fn.Name, err)
+		} else {
+			fmt.Printf("  ✅ Generated tests for function: %s\n", fn.Name)
 		}
 	}
 
 	// Generate unit tests for modified classes/structs
-	for _, cls := range changes.ModifiedClasses {
+	fmt.Printf("\n🔨 Generating unit tests for %d modified classes...\n", len(changes.ModifiedClasses))
+	for i, cls := range changes.ModifiedClasses {
+		fmt.Printf("  [%d/%d] Processing class: %s (file: %s)\n", i+1, len(changes.ModifiedClasses), cls.Name, cls.File)
 		if err := tg.generateUnitTestsForClass(cls, unitOutputDir); err != nil {
-			fmt.Printf("⚠️  Failed to generate tests for class %s: %v\n", cls.Name, err)
+			fmt.Printf("  ⚠️  Failed to generate tests for class %s: %v\n", cls.Name, err)
+		} else {
+			fmt.Printf("  ✅ Generated tests for class: %s\n", cls.Name)
 		}
 	}
 
 	// Generate functional tests for high-impact semantic changes
+	highImpactChanges := 0
 	for _, change := range changes.SemanticChanges {
 		if change.Impact == "high" || change.Impact == "critical" {
+			highImpactChanges++
+		}
+	}
+	fmt.Printf("\n🔨 Generating functional tests for %d high-impact changes...\n", highImpactChanges)
+	processedChanges := 0
+	for _, change := range changes.SemanticChanges {
+		if change.Impact == "high" || change.Impact == "critical" {
+			processedChanges++
+			fmt.Printf("  [%d/%d] Processing change: %s (impact: %s)\n", processedChanges, highImpactChanges, change.Name, change.Impact)
 			if err := tg.generateFunctionalTest(change, functionalOutputDir); err != nil {
-				fmt.Printf("⚠️  Failed to generate functional test for %s: %v\n", change.Name, err)
+				fmt.Printf("  ⚠️  Failed to generate functional test for %s: %v\n", change.Name, err)
+			} else {
+				fmt.Printf("  ✅ Generated functional test for: %s\n", change.Name)
 			}
 		}
 	}
 
 	// Generate integration tests for affected modules
-	for _, module := range changes.AffectedModules {
+	fmt.Printf("\n🔨 Generating integration tests for %d affected modules...\n", len(changes.AffectedModules))
+	for i, module := range changes.AffectedModules {
+		fmt.Printf("  [%d/%d] Processing module: %s\n", i+1, len(changes.AffectedModules), module)
 		if err := tg.generateIntegrationTests(module, unitOutputDir); err != nil {
-			fmt.Printf("⚠️  Failed to generate integration tests for module %s: %v\n", module, err)
+			fmt.Printf("  ⚠️  Failed to generate integration tests for module %s: %v\n", module, err)
+		} else {
+			fmt.Printf("  ✅ Generated integration tests for module: %s\n", module)
 		}
 	}
 
@@ -96,6 +125,7 @@ func (tg *TestGenerator) GenerateTests(changes *types.ChangeInfo, unitOutputDir,
 
 // generateUnitTestsForFunction generates unit tests for a specific function
 func (tg *TestGenerator) generateUnitTestsForFunction(fn types.FunctionChange, outputDir string) error {
+	fmt.Printf("    🔍 Analyzing function: %s\n", fn.Name)
 	framework := tg.config.TestFrameworks[fn.Language]
 	if framework == "" {
 		framework = "testing" // Default for Go
@@ -106,12 +136,17 @@ func (tg *TestGenerator) generateUnitTestsForFunction(fn types.FunctionChange, o
 	testFilepath := filepath.Join(outputDir, testFilename)
 
 	// Read source code for context
+	fmt.Printf("    📖 Reading source file: %s\n", fn.File)
 	sourceCode, err := tg.readSourceFile(fn.File)
 	if err != nil {
+		fmt.Printf("    ⚠️  Could not read source file: %v\n", err)
 		sourceCode = "" // Continue without source context
+	} else {
+		fmt.Printf("    ✅ Source file read (%d bytes)\n", len(sourceCode))
 	}
 
 	// Generate test cases
+	fmt.Printf("    🧪 Generating test cases for function: %s\n", fn.Name)
 	testCases, err := tg.generateTestCasesForFunction(fn, sourceCode, framework)
 	if err != nil {
 		return err
@@ -259,10 +294,10 @@ func (tg *TestGenerator) generateFunctionalScenarios(change types.SemanticChange
 
 	// Try to generate AI-powered test if Bob Shell client is available
 	if tg.aiClient != nil {
-		fmt.Printf("🤖 Generating AI-powered E2E test for %s using Bob Shell CLI...\n", change.Name)
+		fmt.Printf("    🤖 Calling Bob Shell CLI for E2E test generation: %s\n", change.Name)
 		aiTest, err := tg.generateE2ETestWithBob(change, language)
 		if err == nil && aiTest != "" {
-			fmt.Printf("✅ Successfully generated AI-powered E2E test for %s (%d chars)\n", change.Name, len(aiTest))
+			fmt.Printf("    ✅ Bob Shell generated E2E test (%d chars)\n", len(aiTest))
 			scenarios = append(scenarios, types.TestCase{
 				Name:        fmt.Sprintf("Test%s_E2E", tg.capitalize(change.Name)),
 				Description: fmt.Sprintf("End-to-end test for %s", change.Name),
@@ -272,9 +307,9 @@ func (tg *TestGenerator) generateFunctionalScenarios(change types.SemanticChange
 			return scenarios
 		}
 		// Fall back to template if AI generation fails
-		fmt.Printf("⚠️  AI test generation failed for %s, using template: %v\n", change.Name, err)
+		fmt.Printf("    ⚠️  Bob Shell failed, using template: %v\n", err)
 	} else {
-		fmt.Printf("⚠️  Bob client not available (API key missing), using template for %s\n", change.Name)
+		fmt.Printf("    ⚠️  Bob Shell client not available (API key missing), using template\n")
 	}
 
 	// Fallback to template-based generation

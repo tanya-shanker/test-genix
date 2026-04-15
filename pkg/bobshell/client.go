@@ -50,6 +50,8 @@ type ContentBlock struct {
 
 // CreateMessage sends a message to Bob Shell CLI and returns the response
 func (c *Client) CreateMessage(req MessageRequest) (*MessageResponse, error) {
+	fmt.Println("🔧 [Bob Shell] Building prompt...")
+
 	// Build the prompt from messages
 	var promptBuilder strings.Builder
 
@@ -67,8 +69,10 @@ func (c *Client) CreateMessage(req MessageRequest) (*MessageResponse, error) {
 	}
 
 	prompt := promptBuilder.String()
+	fmt.Printf("🔧 [Bob Shell] Prompt length: %d characters\n", len(prompt))
 
 	// Find bob CLI executable
+	fmt.Println("🔧 [Bob Shell] Looking for Bob CLI executable...")
 	bobPath, err := exec.LookPath("bob")
 	if err != nil {
 		// Try common installation paths
@@ -87,28 +91,44 @@ func (c *Client) CreateMessage(req MessageRequest) (*MessageResponse, error) {
 			return nil, fmt.Errorf("bob CLI not found in PATH or common locations. Please install Bob CLI")
 		}
 	}
+	fmt.Printf("🔧 [Bob Shell] Found Bob CLI at: %s\n", bobPath)
 
 	// Call Bob Shell CLI using non-interactive mode with -p flag
 	// Usage: bob -p "prompt"
+	fmt.Println("🔧 [Bob Shell] Executing Bob CLI command...")
+	fmt.Println("🔧 [Bob Shell] Command: bob -p \"<prompt>\"")
 	cmd := exec.Command(bobPath, "-p", prompt)
 
 	// Set API key environment variable
+	apiKeyLen := len(c.APIKey)
+	if apiKeyLen > 0 {
+		fmt.Printf("🔧 [Bob Shell] API key configured (length: %d chars)\n", apiKeyLen)
+	} else {
+		fmt.Println("⚠️  [Bob Shell] WARNING: API key is empty!")
+	}
 	cmd.Env = append(os.Environ(), fmt.Sprintf("BOBSHELL_API_KEY=%s", c.APIKey))
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	fmt.Println("🔧 [Bob Shell] Waiting for Bob CLI response...")
 	if err := cmd.Run(); err != nil {
+		fmt.Printf("❌ [Bob Shell] Bob CLI failed: %v\n", err)
+		fmt.Printf("❌ [Bob Shell] Stderr: %s\n", stderr.String())
 		return nil, fmt.Errorf("bob CLI error: %w, stderr: %s", err, stderr.String())
 	}
+	fmt.Println("✅ [Bob Shell] Bob CLI completed successfully")
 
 	// Parse response
+	responseText := strings.TrimSpace(stdout.String())
+	fmt.Printf("🔧 [Bob Shell] Response length: %d characters\n", len(responseText))
+
 	response := &MessageResponse{
 		Content: []ContentBlock{
 			{
 				Type: "text",
-				Text: strings.TrimSpace(stdout.String()),
+				Text: responseText,
 			},
 		},
 		Model: req.Model,

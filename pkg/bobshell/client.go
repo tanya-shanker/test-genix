@@ -68,19 +68,6 @@ func (c *Client) CreateMessage(req MessageRequest) (*MessageResponse, error) {
 
 	prompt := promptBuilder.String()
 
-	// Create temporary file for prompt
-	tmpFile, err := os.CreateTemp("", "bob-prompt-*.txt")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := tmpFile.WriteString(prompt); err != nil {
-		tmpFile.Close()
-		return nil, fmt.Errorf("failed to write prompt: %w", err)
-	}
-	tmpFile.Close()
-
 	// Find bob CLI executable
 	bobPath, err := exec.LookPath("bob")
 	if err != nil {
@@ -97,12 +84,13 @@ func (c *Client) CreateMessage(req MessageRequest) (*MessageResponse, error) {
 			}
 		}
 		if bobPath == "" {
-			return nil, fmt.Errorf("bob CLI not found in PATH or common locations. Please install Bob CLI: https://github.com/IBM/bob-cli")
+			return nil, fmt.Errorf("bob CLI not found in PATH or common locations. Please install Bob CLI")
 		}
 	}
 
-	// Call Bob Shell CLI
-	cmd := exec.Command(bobPath, "ask", "--file", tmpFile.Name())
+	// Call Bob Shell CLI using non-interactive mode with -p flag
+	// Usage: bob -p "prompt"
+	cmd := exec.Command(bobPath, "-p", prompt)
 
 	// Set API key environment variable
 	cmd.Env = append(os.Environ(), fmt.Sprintf("BOBSHELL_API_KEY=%s", c.APIKey))

@@ -6,7 +6,7 @@ This guide will help you get started with the Intelligent Test Orchestrator in 5
 
 - Go 1.21 or higher installed
 - Git repository with code changes
-- (Optional) Anthropic API key for Bob-enhanced tests
+- (Optional) Bob Shell API key for AI-enhanced tests
 
 ## Step 1: Build the Orchestrator
 
@@ -37,20 +37,16 @@ vim config/my-config.yaml
 Key settings to customize:
 - `functional_test_repo`: Your functional test repository
 - `coverage_target`: Desired coverage percentage (default: 80%)
-- `ai_model`: AI model to use (default: claude-3-5-sonnet-20241022)
+- `ai_model`: AI model to use (default: gpt-4, used by Bob Shell CLI)
 
 ## Step 3: Set Environment Variables (Optional)
 
-For Bob-enhanced test generation (any of these will work):
+For Bob Shell CLI test generation:
 ```bash
-export ANTHROPIC_API_KEY="your-anthropic-api-key"  # Standard Anthropic
-# OR
-export BOB_API_KEY="your-bob-api-key"              # Bob-specific
-# OR
-export CLAUDE_API_KEY="your-claude-api-key"        # Alternative
+export BOBSHELL_API_KEY="your-bob-shell-api-key"
 ```
 
-**Note:** If you're using Bob within Roo Code/Cline, the API key may already be configured and will be automatically detected.
+**Note:** This is the IBM Bob Shell CLI API key. Contact your IBM Cloud administrator to obtain one.
 
 For PR creation:
 ```bash
@@ -245,7 +241,7 @@ To use in IBM Cloud OnePipeline:
 
 1. Ensure `.one-pipeline.yaml` is in your repository
 2. Configure environment variables in pipeline settings:
-   - `ANTHROPIC_API_KEY` (optional - for Bob/Claude)
+   - `BOBSHELL_API_KEY` (optional - for AI-powered test generation)
    - `GITHUB_TOKEN` (optional)
    - `FUNCTIONAL_TEST_REPO` (optional)
 3. Push changes to trigger pipeline

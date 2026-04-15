@@ -216,20 +216,8 @@ func getDefaultConfig() *types.Config {
 }
 
 func overrideConfigFromEnv(config *types.Config) {
-	// Check for Anthropic API key (standard)
-	if apiKey := os.Getenv("ANTHROPIC_API_KEY"); apiKey != "" {
-		config.AIAPIKey = apiKey
-	}
-	// Also check for BOB_API_KEY (if Bob has a separate key)
-	if apiKey := os.Getenv("BOB_API_KEY"); apiKey != "" {
-		config.AIAPIKey = apiKey
-	}
-	// Check for BOBSHELL_API_KEY (IBM Bob Shell)
+	// Check for BOBSHELL_API_KEY (IBM Bob Shell CLI)
 	if apiKey := os.Getenv("BOBSHELL_API_KEY"); apiKey != "" {
-		config.AIAPIKey = apiKey
-	}
-	// Check for CLAUDE_API_KEY as alternative
-	if apiKey := os.Getenv("CLAUDE_API_KEY"); apiKey != "" {
 		config.AIAPIKey = apiKey
 	}
 	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
@@ -253,11 +241,11 @@ func overrideConfigFromEnv(config *types.Config) {
 		fmt.Println("     - Full URL (e.g., 'https://github.com/your-org/functional-tests.git')")
 	}
 
-	// Log AI API key status
+	// Log Bob Shell API key status
 	if config.AIAPIKey != "" {
-		fmt.Printf("✅ AI API Key configured (length: %d chars)\n", len(config.AIAPIKey))
+		fmt.Printf("✅ Bob Shell API Key configured (length: %d chars)\n", len(config.AIAPIKey))
 	} else {
-		fmt.Println("⚠️  Warning: No AI API key found (checked BOBSHELL_API_KEY, BOB_API_KEY, ANTHROPIC_API_KEY, CLAUDE_API_KEY)")
+		fmt.Println("⚠️  Warning: BOBSHELL_API_KEY environment variable not set")
 		fmt.Println("   AI-powered test generation will be disabled, using templates instead")
 	}
 }

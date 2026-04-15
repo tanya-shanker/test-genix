@@ -78,9 +78,9 @@ ai-test-generation:
 Set these environment variables in your IBM Cloud OnePipeline configuration:
 
 **Required:**
-- `BOBSHELL_API_KEY` - Your IBM Bob Shell API key (recommended)
+- `BOBSHELL_API_KEY` - Your IBM Bob Shell API key
   - Get from Bob IDE or Slack welcome message from Ask Bob
-  - Alternative: `BOB_API_KEY`, `ANTHROPIC_API_KEY`, or `CLAUDE_API_KEY`
+  - Contact your IBM Cloud administrator to obtain one
 - `GIT_BRANCH` - Current branch name (usually auto-set by pipeline)
 - `GIT_COMMIT` - Current commit SHA (usually auto-set by pipeline)
 
@@ -312,7 +312,7 @@ The script supports multiple API key environment variables (checked in order):
 - Focuses on source code files
 
 ### ✅ AI-Powered Test Generation
-- Uses Bob CLI (Claude 3.5 Sonnet) for intelligent test creation
+- Uses Bob Shell CLI for intelligent test creation
 - Generates comprehensive test scenarios including:
   - Happy path cases
   - Edge cases and boundary conditions
@@ -343,7 +343,7 @@ The script supports multiple API key environment variables (checked in order):
 
 ### Issue: No API Key
 
-**Error:** `No API key found. Please set one of: BOB_API_KEY, ANTHROPIC_API_KEY, CLAUDE_API_KEY`
+**Error:** `No API key found. Please set BOBSHELL_API_KEY`
 
 **Solution:** Set one of the API key environment variables in your pipeline configuration.
 
@@ -402,4 +402,4 @@ For issues or questions:
 
 ---
 
-**Made with Bob (Claude 3.5 Sonnet)** 🤖
+**Made with Bob Shell CLI** 🤖

@@ -25,7 +25,7 @@ Full-featured orchestrator with advanced capabilities for complex projects.
 - **Unit Tests**: Individual functions and methods
 - **Integration Tests**: Component interactions
 - **Functional Tests**: End-to-end feature behavior
-- **AI-Enhanced Tests**: Uses Bob (Claude) for comprehensive test scenarios
+- **AI-Enhanced Tests**: Uses Bob Shell CLI for comprehensive test scenarios
 
 ### 3. **Intelligent Test Suite Integration**
 - Automatically identifies appropriate test suite locations
@@ -116,7 +116,7 @@ BOBSHELL_API_KEY=your-api-key  # Get from Bob IDE or Slack
 
 - Go 1.21 or higher
 - Git
-- Bob/Anthropic API key
+- Bob Shell API key (BOBSHELL_API_KEY)
 - (Optional) GitHub token for PR creation
 
 #### Installation
@@ -150,8 +150,8 @@ cp config/test-orchestrator-config.yaml config/my-config.yaml
 # Set your functional test repository
 functional_test_repo: "your-org/functional-tests"
 
-# Configure AI model (optional) - Bob/Claude
-ai_model: "claude-3-5-sonnet-20241022"
+# Configure AI model (optional) - Bob Shell CLI
+ai_model: "gpt-4"
 
 # Set coverage target
 coverage_target: 80.0
@@ -162,9 +162,7 @@ coverage_target: 80.0
 # For IBM Bob Shell (recommended - see https://internal.bob.ibm.com/docs/shell/install-and-setup):
 export BOBSHELL_API_KEY="your-api-key"  # Get from Bob IDE or Slack
 # OR use alternative keys:
-export BOB_API_KEY="your-bob-key"
-export ANTHROPIC_API_KEY="your-anthropic-api-key"
-export CLAUDE_API_KEY="your-claude-api-key"
+export BOBSHELL_API_KEY="your-bob-shell-api-key"
 
 # For PR creation (optional):
 export GITHUB_TOKEN="your-github-token"
@@ -257,7 +255,7 @@ Configure these in your IBM Cloud OnePipeline:
 - `BASE_BRANCH`: Base branch for comparison (default: main)
 
 **Optional:**
-- `ANTHROPIC_API_KEY`: Anthropic API key for Bob-enhanced tests
+- `BOBSHELL_API_KEY`: Bob Shell API key for AI-enhanced tests
 - `GITHUB_TOKEN`: GitHub token for creating PRs
 - `FUNCTIONAL_TEST_REPO`: Repository for functional tests
 

@@ -6,17 +6,27 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/tanya-shanker/test-genix/pkg/bobshell"
 )
 
 // TestIntegrator integrates generated tests into existing test suites
 type TestIntegrator struct {
 	projectRoot string
+	aiClient    *bobshell.Client
 }
 
 // NewTestIntegrator creates a new test integrator
 func NewTestIntegrator(projectRoot string) *TestIntegrator {
+	// Try to get API key for test validation
+	var client *bobshell.Client
+	if apiKey := os.Getenv("BOBSHELL_API_KEY"); apiKey != "" {
+		client = bobshell.NewClient(apiKey)
+	}
+
 	return &TestIntegrator{
 		projectRoot: projectRoot,
+		aiClient:    client,
 	}
 }
 
@@ -24,7 +34,11 @@ func NewTestIntegrator(projectRoot string) *TestIntegrator {
 type IntegrationResult struct {
 	FilesIntegrated   int      `json:"files_integrated"`
 	TestsAdded        int      `json:"tests_added"`
+	TestsUpdated      int      `json:"tests_updated"`
+	TestsValidated    int      `json:"tests_validated"`
+	DuplicatesRemoved int      `json:"duplicates_removed"`
 	DuplicatesSkipped int      `json:"duplicates_skipped"`
+	ExistingInPR      int      `json:"existing_in_pr"`
 	Errors            []string `json:"errors,omitempty"`
 }
 
@@ -35,7 +49,11 @@ func (ti *TestIntegrator) IntegrateUnitTests(testDir, targetDir string) (*Integr
 	result := &IntegrationResult{
 		FilesIntegrated:   0,
 		TestsAdded:        0,
+		TestsUpdated:      0,
+		TestsValidated:    0,
+		DuplicatesRemoved: 0,
 		DuplicatesSkipped: 0,
+		ExistingInPR:      0,
 		Errors:            []string{},
 	}
 
@@ -44,8 +62,48 @@ func (ti *TestIntegrator) IntegrateUnitTests(testDir, targetDir string) (*Integr
 		return nil, fmt.Errorf("failed to create target directory: %w", err)
 	}
 
+	// First, detect and validate tests already in the PR
+	fmt.Println("🔍 Checking for tests already in PR changes...")
+	existingTests, err := ti.detectTestsInPR()
+	if err != nil {
+		fmt.Printf("⚠️  Could not detect tests in PR: %v\n", err)
+		existingTests = []string{} // Continue with empty list
+	} else {
+		result.ExistingInPR = len(existingTests)
+		if len(existingTests) > 0 {
+			fmt.Printf("📋 Found %d test files already in PR\n", len(existingTests))
+
+			// Validate existing tests if Bob Shell is available
+			if ti.aiClient != nil {
+				fmt.Println("🔍 Validating existing tests with Bob Shell CLI...")
+				for _, testFile := range existingTests {
+					if ti.shouldValidateTest(testFile) {
+						valid, needsUpdate, err := ti.validateExistingTest(testFile)
+						if err != nil {
+							fmt.Printf("   ⚠️  Could not validate %s: %v\n", testFile, err)
+							continue
+						}
+
+						if valid && !needsUpdate {
+							fmt.Printf("   ✅ Test is valid: %s\n", testFile)
+							result.TestsValidated++
+						} else if needsUpdate {
+							fmt.Printf("   🔄 Test needs update: %s\n", testFile)
+							// Mark for regeneration
+							if err := ti.markTestForRegeneration(testFile); err != nil {
+								fmt.Printf("   ⚠️  Could not mark for regeneration: %v\n", err)
+							}
+						}
+					}
+				}
+			} else {
+				fmt.Println("ℹ️  Skipping test validation (Bob Shell API key not configured)")
+			}
+		}
+	}
+
 	// Walk through generated test directory
-	err := filepath.Walk(testDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(testDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -451,6 +509,172 @@ func (ti *TestIntegrator) configureGitAuth() error {
 	}
 
 	fmt.Println("✅ Git authentication configured")
+	return nil
+}
+
+// detectTestsInPR detects test files that are already part of the PR changes
+func (ti *TestIntegrator) detectTestsInPR() ([]string, error) {
+	// Get list of changed files in the PR
+	cmd := exec.Command("git", "diff", "--name-only", "origin/main...HEAD")
+	cmd.Dir = ti.projectRoot
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get changed files: %w", err)
+	}
+
+	changedFiles := strings.Split(strings.TrimSpace(string(output)), "\n")
+	testFiles := []string{}
+
+	for _, file := range changedFiles {
+		if file != "" && ti.isTestFile(file) {
+			testFiles = append(testFiles, filepath.Join(ti.projectRoot, file))
+		}
+	}
+
+	return testFiles, nil
+}
+
+// shouldValidateTest determines if a test file should be validated
+func (ti *TestIntegrator) shouldValidateTest(testFile string) bool {
+	// Only validate if file exists and is readable
+	if _, err := os.Stat(testFile); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
+// validateExistingTest uses Bob Shell CLI to validate if an existing test is correct
+func (ti *TestIntegrator) validateExistingTest(testFile string) (valid bool, needsUpdate bool, err error) {
+	if ti.aiClient == nil {
+		return true, false, nil // Skip validation if no AI client
+	}
+
+	fmt.Printf("   🔍 Validating test: %s\n", filepath.Base(testFile))
+
+	// Read the test file
+	testContent, err := os.ReadFile(testFile)
+	if err != nil {
+		return false, false, fmt.Errorf("failed to read test file: %w", err)
+	}
+
+	// Find the corresponding source file
+	sourceFile := ti.findSourceFileForTest(testFile)
+	if sourceFile == "" {
+		fmt.Printf("   ⚠️  Could not find source file for test\n")
+		return true, false, nil // Assume valid if we can't find source
+	}
+
+	// Read the source file
+	sourceContent, err := os.ReadFile(sourceFile)
+	if err != nil {
+		return false, false, fmt.Errorf("failed to read source file: %w", err)
+	}
+
+	// Ask Bob Shell CLI to validate the test
+	prompt := fmt.Sprintf(`You are a test validation expert. Analyze if the following test correctly tests the source code.
+
+**Source Code:**
+%s
+
+**Test Code:**
+%s
+
+**Task:**
+1. Check if the test covers the main functionality
+2. Check if the test has proper assertions
+3. Check if the test handles edge cases
+4. Check if the test is up-to-date with the source code
+
+**Response Format:**
+Respond with ONLY one of these:
+- VALID: if the test is correct and complete
+- NEEDS_UPDATE: if the test exists but is outdated or incomplete
+- INVALID: if the test is incorrect
+
+Then on a new line, provide a brief reason (max 50 words).`, string(sourceContent), string(testContent))
+
+	message, err := ti.aiClient.CreateMessage(bobshell.MessageRequest{
+		Model:     "gpt-4",
+		MaxTokens: 500,
+		Messages: []bobshell.Message{
+			{Role: "user", Content: prompt},
+		},
+		System: "You are a test validation expert. Provide concise, actionable feedback.",
+	})
+
+	if err != nil {
+		return false, false, fmt.Errorf("Bob Shell validation failed: %w", err)
+	}
+
+	response := strings.TrimSpace(message.ExtractText())
+	lines := strings.Split(response, "\n")
+
+	if len(lines) == 0 {
+		return true, false, nil
+	}
+
+	verdict := strings.ToUpper(strings.TrimSpace(lines[0]))
+	reason := ""
+	if len(lines) > 1 {
+		reason = strings.TrimSpace(lines[1])
+	}
+
+	switch verdict {
+	case "VALID":
+		fmt.Printf("   ✅ Test is valid: %s\n", reason)
+		return true, false, nil
+	case "NEEDS_UPDATE":
+		fmt.Printf("   🔄 Test needs update: %s\n", reason)
+		return false, true, nil
+	case "INVALID":
+		fmt.Printf("   ❌ Test is invalid: %s\n", reason)
+		return false, true, nil
+	default:
+		// If we can't parse the response, assume valid
+		return true, false, nil
+	}
+}
+
+// findSourceFileForTest finds the source file corresponding to a test file
+func (ti *TestIntegrator) findSourceFileForTest(testFile string) string {
+	// Remove _test suffix and .go extension
+	base := filepath.Base(testFile)
+
+	// Go pattern: file_test.go -> file.go
+	if strings.HasSuffix(base, "_test.go") {
+		sourceBase := strings.TrimSuffix(base, "_test.go") + ".go"
+		sourceFile := filepath.Join(filepath.Dir(testFile), sourceBase)
+		if _, err := os.Stat(sourceFile); err == nil {
+			return sourceFile
+		}
+	}
+
+	// Python pattern: test_file.py -> file.py
+	if strings.HasPrefix(base, "test_") && strings.HasSuffix(base, ".py") {
+		sourceBase := strings.TrimPrefix(base, "test_")
+		sourceFile := filepath.Join(filepath.Dir(testFile), sourceBase)
+		if _, err := os.Stat(sourceFile); err == nil {
+			return sourceFile
+		}
+	}
+
+	return ""
+}
+
+// markTestForRegeneration marks a test file for regeneration by removing it
+func (ti *TestIntegrator) markTestForRegeneration(testFile string) error {
+	fmt.Printf("   🗑️  Removing outdated test for regeneration: %s\n", filepath.Base(testFile))
+
+	// Instead of deleting, we could rename with .old extension
+	// This allows manual review if needed
+	oldFile := testFile + ".old"
+	if err := os.Rename(testFile, oldFile); err != nil {
+		// If rename fails, try to delete
+		if err := os.Remove(testFile); err != nil {
+			return fmt.Errorf("failed to remove test file: %w", err)
+		}
+	}
+
 	return nil
 }
 

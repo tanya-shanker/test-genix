@@ -184,15 +184,31 @@ func (pc *PRCreator) getAuthenticatedRepoURL() string {
 		return pc.getFunctionalRepoURL()
 	}
 
+	repo := pc.functionalRepo
+
+	// If repo is already a full URL, inject token into it
+	if strings.HasPrefix(repo, "http://") || strings.HasPrefix(repo, "https://") {
+		// Parse the URL to inject token
+		// https://github.com/owner/repo.git -> https://x-access-token:TOKEN@github.com/owner/repo.git
+		repo = strings.TrimPrefix(repo, "https://")
+		repo = strings.TrimPrefix(repo, "http://")
+		// Ensure .git extension
+		if !strings.HasSuffix(repo, ".git") {
+			repo = repo + ".git"
+		}
+		return fmt.Sprintf("https://x-access-token:%s@%s", token, repo)
+	}
+
+	// Otherwise, construct URL from owner/repo format
 	if pc.config.GitHubEnterpriseURL != "" {
 		// GitHub Enterprise: https://x-access-token:TOKEN@ghe.example.com/org/repo.git
 		baseURL := strings.TrimPrefix(pc.config.GitHubEnterpriseURL, "https://")
 		baseURL = strings.TrimPrefix(baseURL, "http://")
-		return fmt.Sprintf("https://x-access-token:%s@%s/%s.git", token, baseURL, pc.functionalRepo)
+		return fmt.Sprintf("https://x-access-token:%s@%s/%s.git", token, baseURL, repo)
 	}
 
 	// GitHub.com: https://x-access-token:TOKEN@github.com/org/repo.git
-	return fmt.Sprintf("https://x-access-token:%s@github.com/%s.git", token, pc.functionalRepo)
+	return fmt.Sprintf("https://x-access-token:%s@github.com/%s.git", token, repo)
 }
 
 // configureGitAuth configures git authentication for the repository

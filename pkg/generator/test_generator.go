@@ -133,7 +133,10 @@ func (tg *TestGenerator) generateUnitTestsForFunction(fn types.FunctionChange, o
 
 	// Generate test file name
 	testFilename := tg.generateTestFilename(fn.File, fn.Language)
-	testFilepath := filepath.Join(outputDir, testFilename)
+
+	// Place test file in the same directory as the source file
+	sourceDir := filepath.Dir(fn.File)
+	testFilepath := filepath.Join(sourceDir, testFilename)
 
 	// Read source code for context
 	fmt.Printf("    📖 Reading source file: %s\n", fn.File)
@@ -171,7 +174,10 @@ func (tg *TestGenerator) generateUnitTestsForClass(cls types.ClassChange, output
 	}
 
 	testFilename := tg.generateTestFilename(cls.File, cls.Language)
-	testFilepath := filepath.Join(outputDir, testFilename)
+
+	// Place test file in the same directory as the source file
+	sourceDir := filepath.Dir(cls.File)
+	testFilepath := filepath.Join(sourceDir, testFilename)
 
 	// Read source code
 	sourceCode, _ := tg.readSourceFile(cls.File)
@@ -204,8 +210,8 @@ func (tg *TestGenerator) generateFunctionalTest(change types.SemanticChange, out
 	// Generate functional test scenarios
 	scenarios := tg.generateFunctionalScenarios(change, language)
 
-	// Write functional test file
-	if err := tg.writeFunctionalTestFile(testFilepath, scenarios, language); err != nil {
+	// Write functional test file with source file for package detection
+	if err := tg.writeFunctionalTestFile(testFilepath, scenarios, language, change.File); err != nil {
 		return err
 	}
 
@@ -223,7 +229,8 @@ func (tg *TestGenerator) generateIntegrationTests(module string, outputDir strin
 	testCases := tg.generateIntegrationTestCases(module)
 
 	if len(testCases) > 0 {
-		if err := tg.writeTestFile(testFilepath, testCases, "go", "testing"); err != nil {
+		// For integration tests, use the module name as package name
+		if err := tg.writeTestFileWithModulePackage(testFilepath, testCases, "go", "testing", module); err != nil {
 			return err
 		}
 		tg.stats.UnitTestsGenerated++
@@ -623,6 +630,11 @@ func (tg *TestGenerator) writeTestFileWithPackage(filepath string, testCases []t
 }
 
 func (tg *TestGenerator) writeTestFile(filepath string, testCases []types.TestCase, language, framework string) error {
+	// This function is deprecated - use writeTestFileWithPackage or writeTestFileWithModulePackage instead
+	return tg.writeTestFileWithModulePackage(filepath, testCases, language, framework, "main")
+}
+
+func (tg *TestGenerator) writeTestFileWithModulePackage(filepath string, testCases []types.TestCase, language, framework, moduleName string) error {
 	if err := os.MkdirAll(filepath[:strings.LastIndex(filepath, string(os.PathSeparator))], 0755); err != nil {
 		return err
 	}
@@ -633,8 +645,8 @@ func (tg *TestGenerator) writeTestFile(filepath string, testCases []types.TestCa
 	}
 	defer file.Close()
 
-	// Write file header
-	header := tg.generateTestFileHeader(language, framework)
+	// Write file header with module-based package name
+	header := tg.generateTestFileHeaderForModule(language, framework, moduleName)
 	if _, err := file.WriteString(header + "\n\n"); err != nil {
 		return err
 	}
@@ -652,7 +664,7 @@ func (tg *TestGenerator) writeTestFile(filepath string, testCases []types.TestCa
 	return nil
 }
 
-func (tg *TestGenerator) writeFunctionalTestFile(filepath string, scenarios []types.TestCase, language string) error {
+func (tg *TestGenerator) writeFunctionalTestFile(filepath string, scenarios []types.TestCase, language, sourceFile string) error {
 	if err := os.MkdirAll(filepath[:strings.LastIndex(filepath, string(os.PathSeparator))], 0755); err != nil {
 		return err
 	}
@@ -663,8 +675,8 @@ func (tg *TestGenerator) writeFunctionalTestFile(filepath string, scenarios []ty
 	}
 	defer file.Close()
 
-	// Write proper file header based on language
-	header := tg.generateFunctionalTestFileHeader(language)
+	// Write proper file header based on language with package from source file
+	header := tg.generateFunctionalTestFileHeader(language, sourceFile)
 	if _, err := file.WriteString(header + "\n\n"); err != nil {
 		return err
 	}
@@ -683,16 +695,21 @@ func (tg *TestGenerator) writeFunctionalTestFile(filepath string, scenarios []ty
 }
 
 func (tg *TestGenerator) generateTestFileHeader(language, framework string) string {
+	// Deprecated - use generateTestFileHeaderForModule instead
+	return tg.generateTestFileHeaderForModule(language, framework, "main")
+}
+
+func (tg *TestGenerator) generateTestFileHeaderForModule(language, framework, moduleName string) string {
 	switch language {
 	case "go":
-		return fmt.Sprintf(`package main
+		return fmt.Sprintf(`package %s
 
 import (
 	"testing"
 )
 
 // Auto-generated tests by AI Test Orchestrator (Bob Shell CLI)
-// Framework: %s`, framework)
+// Framework: %s`, moduleName, framework)
 
 	case "python":
 		return fmt.Sprintf(`"""
@@ -720,6 +737,8 @@ func (tg *TestGenerator) generateTestFileHeaderWithPackage(language, framework, 
 			packageName = "main"
 		}
 
+		// Use the same package name as the source file (white-box testing)
+		// This allows tests to access package-private functions and variables
 		return fmt.Sprintf(`package %s
 
 import (
@@ -746,16 +765,22 @@ import pytest`, framework)
 	return ""
 }
 
-func (tg *TestGenerator) generateFunctionalTestFileHeader(language string) string {
+func (tg *TestGenerator) generateFunctionalTestFileHeader(language, sourceFile string) string {
 	switch language {
 	case "go":
-		return `package main
+		// Extract package name from source file
+		packageName := tg.extractPackageName(sourceFile)
+		if packageName == "" {
+			packageName = "main"
+		}
+
+		return fmt.Sprintf(`package %s
 
 import (
 	"testing"
 )
 
-// Functional Test - Auto-generated by AI Test Orchestrator (Bob)`
+// Functional Test - Auto-generated by AI Test Orchestrator (Bob)`, packageName)
 
 	case "python":
 		return `"""

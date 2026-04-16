@@ -206,7 +206,7 @@ func getDefaultConfig() *types.Config {
 		MaxTestsPerFunction: 5,
 		GenerateEdgeCases:   true,
 		GenerateMocks:       true,
-		FunctionalTestRepo:  "functional-tests",
+		FunctionalTestRepo:  "", // Must be set via FUNCTIONAL_TEST_REPO environment variable
 		AIModel:             "gpt-4",
 		TestPatterns: types.TestPatterns{
 			Unit:       "test_{function_name}",
@@ -216,16 +216,8 @@ func getDefaultConfig() *types.Config {
 }
 
 func overrideConfigFromEnv(config *types.Config) {
-	// Check for Anthropic API key (standard)
-	if apiKey := os.Getenv("ANTHROPIC_API_KEY"); apiKey != "" {
-		config.AIAPIKey = apiKey
-	}
-	// Also check for BOB_API_KEY (if Bob has a separate key)
-	if apiKey := os.Getenv("BOB_API_KEY"); apiKey != "" {
-		config.AIAPIKey = apiKey
-	}
-	// Check for CLAUDE_API_KEY as alternative
-	if apiKey := os.Getenv("CLAUDE_API_KEY"); apiKey != "" {
+	// Check for BOBSHELL_API_KEY (IBM Bob Shell CLI)
+	if apiKey := os.Getenv("BOBSHELL_API_KEY"); apiKey != "" {
 		config.AIAPIKey = apiKey
 	}
 	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
@@ -239,6 +231,22 @@ func overrideConfigFromEnv(config *types.Config) {
 	}
 	if repo := os.Getenv("FUNCTIONAL_TEST_REPO"); repo != "" {
 		config.FunctionalTestRepo = repo
+		fmt.Println("✅ FUNCTIONAL_TEST_REPO configured:", repo)
+	} else if config.FunctionalTestRepo == "" {
+		// Warn if functional test repo is not configured
+		fmt.Println("⚠️  Warning: FUNCTIONAL_TEST_REPO environment variable not set")
+		fmt.Println("   Functional test PR creation will be skipped")
+		fmt.Println("   Set FUNCTIONAL_TEST_REPO to either:")
+		fmt.Println("     - 'owner/repo' format (e.g., 'your-org/functional-tests')")
+		fmt.Println("     - Full URL (e.g., 'https://github.com/your-org/functional-tests.git')")
+	}
+
+	// Log Bob Shell API key status
+	if config.AIAPIKey != "" {
+		fmt.Printf("✅ Bob Shell API Key configured (length: %d chars)\n", len(config.AIAPIKey))
+	} else {
+		fmt.Println("⚠️  Warning: BOBSHELL_API_KEY environment variable not set")
+		fmt.Println("   AI-powered test generation will be disabled, using templates instead")
 	}
 }
 

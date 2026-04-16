@@ -23,10 +23,10 @@ spec:
     description: Target coverage percentage
     type: string
     default: "80"
-  - name: functional-test-repo
-    description: Functional test repository
-    type: string
-    default: ""
+  # - name: functional-test-repo
+  #   description: Functional test repository
+  #   type: string
+  #   default: ""
   - name: pipeline-debug
     description: Enable debug mode
     type: string
@@ -46,6 +46,16 @@ spec:
   - name: tools-ws
     description: Workspace for shared tools and dependencies
 
+  volumes:
+  - name: bobshell-api-key-volume
+    secret:
+      secretName: bobshell-api-key
+      optional: true
+  - name: github-token-volume
+    secret:
+      secretName: github-token
+      optional: true
+
   steps:
   - name: ai-test-generation
     image: icr.io/continuous-delivery/pipeline/pipeline-base-image:2.71
@@ -60,14 +70,34 @@ spec:
       value: $(params.base-branch)
     - name: COVERAGE_TARGET
       value: $(params.coverage-target)
+    # - name: FUNCTIONAL_TEST_REPO
+    #   value: $(params.functional-test-repo)
     - name: FUNCTIONAL_TEST_REPO
-      value: $(params.functional-test-repo)
+      valueFrom:
+        configMapKeyRef:
+          name: environment-properties
+          key: functional-test-repo
     - name: REPOSITORY
       value: $(params.repository)
     - name: BOBSHELL_API_KEY
-      value: $(params.bobshell-api-key-secret)
+      valueFrom:
+        secretKeyRef:
+          name: secret-object
+          key: api-key
+          optional: true
     - name: GITHUB_TOKEN
-      value: $(params.github-token-secret)
+      valueFrom:
+        secretKeyRef:
+          name: secret-object
+          key: token
+          optional: true
+    volumeMounts:
+    - name: bobshell-api-key-volume
+      mountPath: /secrets/bobshell
+      readOnly: true
+    - name: github-token-volume
+      mountPath: /secrets/github
+      readOnly: true
     workingDir: $(workspaces.output.path)
     script: |
       #!/usr/bin/env bash
@@ -86,24 +116,38 @@ spec:
       echo "Branch: $GIT_BRANCH"
       echo "Commit: $GIT_COMMIT"
       echo "Base Branch: $BASE_BRANCH"
+      echo "FUNCTIONAL_TEST_REPO: $FUNCTIONAL_TEST_REPO"
       echo ""
-      
-      # Check environment variables (set in IBM Cloud OnePipeline)
-      echo "🔐 Checking environment variables..."
-      if [ -n "$BOBSHELL_API_KEY" ]; then
-        echo "✅ BOBSHELL_API_KEY is set"
+
+      # Load secrets from mounted volumes (if available)
+      if [ -f "/secrets/bobshell/api-key" ]; then
+        export BOBSHELL_API_KEY=$(cat /secrets/bobshell/api-key)
+        echo "✅ Bob Shell API key loaded from volume"
+      elif [ -n "$BOBSHELL_API_KEY" ]; then
+        echo "✅ Bob Shell API key loaded from environment"
       else
         echo "❌ BOBSHELL_API_KEY not found"
         echo "   → Set this in IBM Cloud OnePipeline environment properties"
         echo "   → AI test generation will not work without it"
       fi
-      
-      if [ -n "$GITHUB_TOKEN" ]; then
-        echo "✅ GITHUB_TOKEN is set"
+
+      if [ -f "/secrets/github/token" ]; then
+        export GITHUB_TOKEN=$(cat /secrets/github/token)
+        echo "✅ GitHub token loaded from volume"
+      elif [ -n "$GITHUB_TOKEN" ]; then
+        echo "✅ GitHub token loaded from environment"
       else
         echo "❌ GITHUB_TOKEN not found"
         echo "   → Set this in IBM Cloud OnePipeline environment properties"
         echo "   → Git push operations will fail without it"
+      fi
+
+      # Export FUNCTIONAL_TEST_REPO if set
+      if [ -n "$FUNCTIONAL_TEST_REPO" ]; then
+        export FUNCTIONAL_TEST_REPO
+        echo "✅ Functional test repo: $FUNCTIONAL_TEST_REPO"
+      else
+        echo "⚠️  FUNCTIONAL_TEST_REPO not set - functional test PR creation will be skipped"
       fi
       echo ""
 
@@ -120,7 +164,7 @@ spec:
 
       # Check if test orchestrator scripts exist in current repo
       pwd 
-      
+
       cd /workspace
       pwd
       ls -la
@@ -135,11 +179,48 @@ spec:
         echo ""
         echo "🔧 Installing test-genix orchestrator..."
         
+        # Upgrade Node.js for Bob Shell (requires 22.15+)
+        echo "📦 Checking Node.js version..."
+        node --version || echo "Node.js not found"
+        
+        echo "📦 Upgrading Node.js to latest LTS..."
+        # Install nvm (Node Version Manager)
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        
+        # Install latest Node.js LTS
+        nvm install --lts
+        nvm use --lts
+        
+        echo "✅ Node.js upgraded:"
+        node --version
+        
+        # Install Bob Shell CLI
+        echo "📦 Installing Bob Shell CLI..."
+        curl -s https://s3.us-south.cloud-object-storage.appdomain.cloud/bobshell/install-bobshell.sh | bash
+        
+        # Add Bob Shell to PATH
+        export PATH="$HOME/.bob/bin:$PATH"
+        
+        # Verify Bob Shell installation
+        if command -v bob &> /dev/null; then
+          echo "✅ Bob Shell CLI installed successfully"
+          bob --version || echo "Bob version check skipped"
+        else
+          echo "⚠️  Bob Shell CLI installation failed, AI test generation will use templates"
+          echo "   Checking common installation paths..."
+          ls -la "$HOME/.bob/bin/" 2>/dev/null || echo "   ~/.bob/bin/ not found"
+        fi
+        
         # Clone test-genix repo to get the orchestrator
         TEMP_DIR=$(mktemp -d)
-        git clone https://github.com/tanya-shanker/test-genix.git "$TEMP_DIR/test-genix"
+        git clone -b my-exp-ts https://github.com/tanya-shanker/test-genix.git "$TEMP_DIR/test-genix"
         cd "$TEMP_DIR/test-genix"
         
+        echo "***** FUNCTIONAL_TEST_REPO from environment variable *****"
+        echo "$FUNCTIONAL_TEST_REPO"
+
         # Build the orchestrator
         echo "🔨 Building test orchestrator..."
         go build -o /tmp/test-orchestrator .

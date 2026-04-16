@@ -8,23 +8,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tanya-shanker/test-genix/pkg/anthropic"
+	"github.com/tanya-shanker/test-genix/pkg/bobshell"
 	"github.com/tanya-shanker/test-genix/pkg/types"
 )
 
 // TestGenerator generates tests using AI/LLM capabilities
 type TestGenerator struct {
 	config      *types.Config
-	aiClient    *anthropic.Client
+	aiClient    *bobshell.Client
 	stats       *types.GenerationStats
 	projectRoot string
 }
 
 // NewTestGenerator creates a new test generator
 func NewTestGenerator(config *types.Config, projectRoot string) *TestGenerator {
-	var client *anthropic.Client
+	var client *bobshell.Client
 	if config.AIAPIKey != "" {
-		client = anthropic.NewClient(config.AIAPIKey)
+		client = bobshell.NewClient(config.AIAPIKey)
 	}
 
 	return &TestGenerator{
@@ -45,43 +45,72 @@ func NewTestGenerator(config *types.Config, projectRoot string) *TestGenerator {
 func (tg *TestGenerator) GenerateTests(changes *types.ChangeInfo, unitOutputDir, functionalOutputDir string) (*types.GenerationStats, error) {
 	startTime := time.Now()
 
-	fmt.Println("🤖 Generating AI-powered tests with Bob (Claude)...")
+	fmt.Println("🤖 Generating AI-powered tests with Bob Shell CLI...")
+	fmt.Printf("📊 Summary: %d functions, %d classes, %d semantic changes, %d modules\n",
+		len(changes.ModifiedFunctions), len(changes.ModifiedClasses),
+		len(changes.SemanticChanges), len(changes.AffectedModules))
 
 	// Create output directories
+	fmt.Println("📁 Creating output directories...")
 	if err := os.MkdirAll(unitOutputDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create unit output dir: %w", err)
 	}
 	if err := os.MkdirAll(functionalOutputDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create functional output dir: %w", err)
 	}
+	fmt.Println("✅ Output directories created")
 
 	// Generate unit tests for modified functions
-	for _, fn := range changes.ModifiedFunctions {
+	fmt.Printf("\n🔨 Generating unit tests for %d modified functions...\n", len(changes.ModifiedFunctions))
+	for i, fn := range changes.ModifiedFunctions {
+		fmt.Printf("  [%d/%d] Processing function: %s (file: %s)\n", i+1, len(changes.ModifiedFunctions), fn.Name, fn.File)
 		if err := tg.generateUnitTestsForFunction(fn, unitOutputDir); err != nil {
-			fmt.Printf("⚠️  Failed to generate tests for function %s: %v\n", fn.Name, err)
+			fmt.Printf("  ⚠️  Failed to generate tests for function %s: %v\n", fn.Name, err)
+		} else {
+			fmt.Printf("  ✅ Generated tests for function: %s\n", fn.Name)
 		}
 	}
 
 	// Generate unit tests for modified classes/structs
-	for _, cls := range changes.ModifiedClasses {
+	fmt.Printf("\n🔨 Generating unit tests for %d modified classes...\n", len(changes.ModifiedClasses))
+	for i, cls := range changes.ModifiedClasses {
+		fmt.Printf("  [%d/%d] Processing class: %s (file: %s)\n", i+1, len(changes.ModifiedClasses), cls.Name, cls.File)
 		if err := tg.generateUnitTestsForClass(cls, unitOutputDir); err != nil {
-			fmt.Printf("⚠️  Failed to generate tests for class %s: %v\n", cls.Name, err)
+			fmt.Printf("  ⚠️  Failed to generate tests for class %s: %v\n", cls.Name, err)
+		} else {
+			fmt.Printf("  ✅ Generated tests for class: %s\n", cls.Name)
 		}
 	}
 
 	// Generate functional tests for high-impact semantic changes
+	highImpactChanges := 0
 	for _, change := range changes.SemanticChanges {
 		if change.Impact == "high" || change.Impact == "critical" {
+			highImpactChanges++
+		}
+	}
+	fmt.Printf("\n🔨 Generating functional tests for %d high-impact changes...\n", highImpactChanges)
+	processedChanges := 0
+	for _, change := range changes.SemanticChanges {
+		if change.Impact == "high" || change.Impact == "critical" {
+			processedChanges++
+			fmt.Printf("  [%d/%d] Processing change: %s (impact: %s)\n", processedChanges, highImpactChanges, change.Name, change.Impact)
 			if err := tg.generateFunctionalTest(change, functionalOutputDir); err != nil {
-				fmt.Printf("⚠️  Failed to generate functional test for %s: %v\n", change.Name, err)
+				fmt.Printf("  ⚠️  Failed to generate functional test for %s: %v\n", change.Name, err)
+			} else {
+				fmt.Printf("  ✅ Generated functional test for: %s\n", change.Name)
 			}
 		}
 	}
 
 	// Generate integration tests for affected modules
-	for _, module := range changes.AffectedModules {
+	fmt.Printf("\n🔨 Generating integration tests for %d affected modules...\n", len(changes.AffectedModules))
+	for i, module := range changes.AffectedModules {
+		fmt.Printf("  [%d/%d] Processing module: %s\n", i+1, len(changes.AffectedModules), module)
 		if err := tg.generateIntegrationTests(module, unitOutputDir); err != nil {
-			fmt.Printf("⚠️  Failed to generate integration tests for module %s: %v\n", module, err)
+			fmt.Printf("  ⚠️  Failed to generate integration tests for module %s: %v\n", module, err)
+		} else {
+			fmt.Printf("  ✅ Generated integration tests for module: %s\n", module)
 		}
 	}
 
@@ -96,6 +125,7 @@ func (tg *TestGenerator) GenerateTests(changes *types.ChangeInfo, unitOutputDir,
 
 // generateUnitTestsForFunction generates unit tests for a specific function
 func (tg *TestGenerator) generateUnitTestsForFunction(fn types.FunctionChange, outputDir string) error {
+	fmt.Printf("    🔍 Analyzing function: %s\n", fn.Name)
 	framework := tg.config.TestFrameworks[fn.Language]
 	if framework == "" {
 		framework = "testing" // Default for Go
@@ -106,19 +136,24 @@ func (tg *TestGenerator) generateUnitTestsForFunction(fn types.FunctionChange, o
 	testFilepath := filepath.Join(outputDir, testFilename)
 
 	// Read source code for context
+	fmt.Printf("    📖 Reading source file: %s\n", fn.File)
 	sourceCode, err := tg.readSourceFile(fn.File)
 	if err != nil {
+		fmt.Printf("    ⚠️  Could not read source file: %v\n", err)
 		sourceCode = "" // Continue without source context
+	} else {
+		fmt.Printf("    ✅ Source file read (%d bytes)\n", len(sourceCode))
 	}
 
 	// Generate test cases
+	fmt.Printf("    🧪 Generating test cases for function: %s\n", fn.Name)
 	testCases, err := tg.generateTestCasesForFunction(fn, sourceCode, framework)
 	if err != nil {
 		return err
 	}
 
-	// Write test file
-	if err := tg.writeTestFile(testFilepath, testCases, fn.Language, framework); err != nil {
+	// Write test file with source file path for package detection
+	if err := tg.writeTestFileWithPackage(testFilepath, testCases, fn.Language, framework, fn.File); err != nil {
 		return err
 	}
 
@@ -148,8 +183,8 @@ func (tg *TestGenerator) generateUnitTestsForClass(cls types.ClassChange, output
 		allTestCases = append(allTestCases, testCases...)
 	}
 
-	// Write test file
-	if err := tg.writeTestFile(testFilepath, allTestCases, cls.Language, framework); err != nil {
+	// Write test file with source file path for package detection
+	if err := tg.writeTestFileWithPackage(testFilepath, allTestCases, cls.Language, framework, cls.File); err != nil {
 		return err
 	}
 
@@ -257,6 +292,27 @@ func (tg *TestGenerator) generateTestCasesForMethod(className, methodName, langu
 func (tg *TestGenerator) generateFunctionalScenarios(change types.SemanticChange, language string) []types.TestCase {
 	scenarios := []types.TestCase{}
 
+	// Try to generate AI-powered test if Bob Shell client is available
+	if tg.aiClient != nil {
+		fmt.Printf("    🤖 Calling Bob Shell CLI for E2E test generation: %s\n", change.Name)
+		aiTest, err := tg.generateE2ETestWithBob(change, language)
+		if err == nil && aiTest != "" {
+			fmt.Printf("    ✅ Bob Shell generated E2E test (%d chars)\n", len(aiTest))
+			scenarios = append(scenarios, types.TestCase{
+				Name:        fmt.Sprintf("Test%s_E2E", tg.capitalize(change.Name)),
+				Description: fmt.Sprintf("End-to-end test for %s", change.Name),
+				Type:        "e2e",
+				Code:        aiTest,
+			})
+			return scenarios
+		}
+		// Fall back to template if AI generation fails
+		fmt.Printf("    ⚠️  Bob Shell failed, using template: %v\n", err)
+	} else {
+		fmt.Printf("    ⚠️  Bob Shell client not available (API key missing), using template\n")
+	}
+
+	// Fallback to template-based generation
 	scenarios = append(scenarios, types.TestCase{
 		Name:        fmt.Sprintf("Test%s_E2E", tg.capitalize(change.Name)),
 		Description: fmt.Sprintf("End-to-end test for %s", change.Name),
@@ -281,7 +337,7 @@ func (tg *TestGenerator) generateIntegrationTestCases(module string) []types.Tes
 	return testCases
 }
 
-// enhanceTestsWithBob uses Bob (Claude) to enhance generated tests
+// enhanceTestsWithBob uses Bob Shell CLI to enhance generated tests
 func (tg *TestGenerator) enhanceTestsWithBob(fn types.FunctionChange, sourceCode string, testCases []types.TestCase) ([]types.TestCase, error) {
 	_ = context.Background() // For future use
 
@@ -299,10 +355,10 @@ Language: %s
 
 Provide test code in %s format.`, sourceCode, fn.Name, fn.Language, fn.Language)
 
-	message, err := tg.aiClient.CreateMessage(anthropic.MessageRequest{
+	message, err := tg.aiClient.CreateMessage(bobshell.MessageRequest{
 		Model:     tg.config.AIModel,
 		MaxTokens: 2000,
-		Messages: []anthropic.Message{
+		Messages: []bobshell.Message{
 			{
 				Role:    "user",
 				Content: prompt,
@@ -328,6 +384,70 @@ Provide test code in %s format.`, sourceCode, fn.Name, fn.Language, fn.Language)
 	}
 
 	return testCases, nil
+}
+
+// generateE2ETestWithBob uses Bob Shell CLI to generate E2E tests based on semantic changes
+func (tg *TestGenerator) generateE2ETestWithBob(change types.SemanticChange, language string) (string, error) {
+	// Read the source file to get context
+	sourceCode, err := tg.readSourceFile(change.File)
+	if err != nil {
+		sourceCode = fmt.Sprintf("// File: %s\n// Unable to read source code", change.File)
+	}
+
+	prompt := fmt.Sprintf(`You are Bob, an expert software testing engineer. Generate a comprehensive end-to-end (E2E) functional test for the following code change:
+
+**Change Type:** %s
+**Component Name:** %s
+**File:** %s
+**Impact:** %s
+
+**Source Code Context:**
+%s
+
+**Requirements:**
+1. Generate a complete, runnable E2E test function in %s
+2. The test should cover the full workflow from setup to cleanup
+3. Include realistic test data and assertions
+4. Test should validate the end-to-end behavior of the feature
+5. Include proper error handling and edge cases
+6. Use the standard testing framework for %s
+7. DO NOT include package declaration or imports - only the test function
+8. Make the test production-ready with meaningful assertions
+
+**Output Format:**
+Provide ONLY the test function code without any markdown formatting, explanations, or package/import statements.`,
+		change.Type, change.Name, change.File, change.Impact, sourceCode, language, language)
+
+	message, err := tg.aiClient.CreateMessage(bobshell.MessageRequest{
+		Model:     tg.config.AIModel,
+		MaxTokens: 3000,
+		Messages: []bobshell.Message{
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		System: "You are Bob, an expert software testing engineer specializing in end-to-end test generation. Generate production-ready, comprehensive E2E tests based on code changes.",
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("failed to generate E2E test with Bob: %w", err)
+	}
+
+	generatedCode := message.ExtractText()
+
+	// Clean up the generated code (remove markdown code blocks if present)
+	generatedCode = strings.TrimSpace(generatedCode)
+	generatedCode = strings.TrimPrefix(generatedCode, "```go")
+	generatedCode = strings.TrimPrefix(generatedCode, "```")
+	generatedCode = strings.TrimSuffix(generatedCode, "```")
+	generatedCode = strings.TrimSpace(generatedCode)
+
+	if generatedCode == "" {
+		return "", fmt.Errorf("Bob generated empty test code")
+	}
+
+	return generatedCode, nil
 }
 
 // Template generation methods for different test types
@@ -472,6 +592,36 @@ func (tg *TestGenerator) generateIntegrationTestCode(module string) string {
 
 // File operations
 
+func (tg *TestGenerator) writeTestFileWithPackage(filepath string, testCases []types.TestCase, language, framework, sourceFile string) error {
+	if err := os.MkdirAll(filepath[:strings.LastIndex(filepath, string(os.PathSeparator))], 0755); err != nil {
+		return err
+	}
+
+	file, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Write file header with correct package
+	header := tg.generateTestFileHeaderWithPackage(language, framework, sourceFile)
+	if _, err := file.WriteString(header + "\n\n"); err != nil {
+		return err
+	}
+
+	// Write test cases
+	for _, testCase := range testCases {
+		if _, err := file.WriteString(fmt.Sprintf("// %s\n", testCase.Description)); err != nil {
+			return err
+		}
+		if _, err := file.WriteString(testCase.Code + "\n\n"); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (tg *TestGenerator) writeTestFile(filepath string, testCases []types.TestCase, language, framework string) error {
 	if err := os.MkdirAll(filepath[:strings.LastIndex(filepath, string(os.PathSeparator))], 0755); err != nil {
 		return err
@@ -513,10 +663,13 @@ func (tg *TestGenerator) writeFunctionalTestFile(filepath string, scenarios []ty
 	}
 	defer file.Close()
 
-	if _, err := file.WriteString("// Functional Test - Auto-generated by AI Test Orchestrator (Bob)\n\n"); err != nil {
+	// Write proper file header based on language
+	header := tg.generateFunctionalTestFileHeader(language)
+	if _, err := file.WriteString(header + "\n\n"); err != nil {
 		return err
 	}
 
+	// Write test scenarios
 	for _, scenario := range scenarios {
 		if _, err := file.WriteString(fmt.Sprintf("// %s\n", scenario.Description)); err != nil {
 			return err
@@ -538,12 +691,12 @@ import (
 	"testing"
 )
 
-// Auto-generated tests by AI Test Orchestrator (Bob)
+// Auto-generated tests by AI Test Orchestrator (Bob Shell CLI)
 // Framework: %s`, framework)
 
 	case "python":
 		return fmt.Sprintf(`"""
-Auto-generated tests by AI Test Orchestrator (Bob)
+Auto-generated tests by AI Test Orchestrator (Bob Shell CLI)
 Framework: %s
 """
 
@@ -551,10 +704,93 @@ import pytest`, framework)
 
 	case "javascript", "typescript":
 		return fmt.Sprintf(`/**
- * Auto-generated tests by AI Test Orchestrator (Bob)
+ * Auto-generated tests by AI Test Orchestrator (Bob Shell CLI)
  * Framework: %s
  */`, framework)
 	}
+	return ""
+}
+
+func (tg *TestGenerator) generateTestFileHeaderWithPackage(language, framework, sourceFile string) string {
+	switch language {
+	case "go":
+		// Extract package name from source file
+		packageName := tg.extractPackageName(sourceFile)
+		if packageName == "" {
+			packageName = "main"
+		}
+
+		return fmt.Sprintf(`package %s
+
+import (
+	"testing"
+)
+
+// Auto-generated tests by AI Test Orchestrator (Bob Shell CLI)
+// Framework: %s`, packageName, framework)
+
+	case "python":
+		return fmt.Sprintf(`"""
+Auto-generated tests by AI Test Orchestrator (Bob Shell CLI)
+Framework: %s
+"""
+
+import pytest`, framework)
+
+	case "javascript", "typescript":
+		return fmt.Sprintf(`/**
+ * Auto-generated tests by AI Test Orchestrator (Bob Shell CLI)
+ * Framework: %s
+ */`, framework)
+	}
+	return ""
+}
+
+func (tg *TestGenerator) generateFunctionalTestFileHeader(language string) string {
+	switch language {
+	case "go":
+		return `package main
+
+import (
+	"testing"
+)
+
+// Functional Test - Auto-generated by AI Test Orchestrator (Bob)`
+
+	case "python":
+		return `"""
+Functional Test - Auto-generated by AI Test Orchestrator (Bob Shell CLI)
+"""
+
+import pytest`
+
+	case "javascript", "typescript":
+		return `/**
+ * Functional Test - Auto-generated by AI Test Orchestrator (Bob Shell CLI)
+ */`
+	}
+	return "// Functional Test - Auto-generated by AI Test Orchestrator (Bob Shell CLI)"
+}
+
+// extractPackageName extracts the package name from a Go source file
+func (tg *TestGenerator) extractPackageName(sourceFile string) string {
+	content, err := tg.readSourceFile(sourceFile)
+	if err != nil {
+		return ""
+	}
+
+	// Look for package declaration
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "package ") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				return parts[1]
+			}
+		}
+	}
+
 	return ""
 }
 

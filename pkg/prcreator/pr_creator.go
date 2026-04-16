@@ -52,6 +52,15 @@ func NewPRCreator(config *types.Config, projectRoot string) *PRCreator {
 func (pc *PRCreator) CreateFunctionalTestPR(testDir, sourceBranch, sourceCommit string) (*types.PRCreationResult, error) {
 	fmt.Println("🔀 Creating PR for functional tests...")
 
+	// Check if functional test repository is configured
+	if pc.functionalRepo == "" {
+		fmt.Println("ℹ️  Functional test repository not configured - skipping PR creation")
+		fmt.Println("   Set FUNCTIONAL_TEST_REPO environment variable to:")
+		fmt.Println("     - 'owner/repo' format (e.g., 'your-org/functional-tests')")
+		fmt.Println("     - Full URL (e.g., 'https://github.com/your-org/functional-tests.git')")
+		return nil, nil
+	}
+
 	// Check if functional tests were generated
 	if !pc.hasFunctionalTests(testDir) {
 		fmt.Println("ℹ️  No functional tests generated - skipping PR creation")
@@ -139,7 +148,7 @@ func (pc *PRCreator) prepareFunctionalTestRepo() (string, error) {
 		return "", fmt.Errorf("failed to clone repo: %w\n%s", err, output)
 	}
 
-	// Configure git to use token for future operations
+	// Configure git authentication after cloning
 	if err := pc.configureGitAuth(repoPath); err != nil {
 		fmt.Printf("⚠️  Could not configure git authentication: %v\n", err)
 	}
@@ -149,12 +158,62 @@ func (pc *PRCreator) prepareFunctionalTestRepo() (string, error) {
 
 // getFunctionalRepoURL constructs the functional test repository URL (without auth)
 func (pc *PRCreator) getFunctionalRepoURL() string {
-	if pc.config.GitHubEnterpriseURL != "" {
-		// GitHub Enterprise
-		return fmt.Sprintf("%s/%s.git", pc.config.GitHubEnterpriseURL, pc.functionalRepo)
+	repo := pc.functionalRepo
+
+	// If it's already a full URL, just ensure it has .git extension
+	if strings.HasPrefix(repo, "http://") || strings.HasPrefix(repo, "https://") {
+		repo = strings.TrimSuffix(repo, "/")
+		if !strings.HasSuffix(repo, ".git") {
+			repo = repo + ".git"
+		}
+		return repo
 	}
-	// GitHub.com
-	return fmt.Sprintf("https://github.com/%s.git", pc.functionalRepo)
+
+	// Otherwise, construct URL from owner/repo format
+	if pc.config.GitHubEnterpriseURL != "" {
+		return fmt.Sprintf("%s/%s.git", pc.config.GitHubEnterpriseURL, repo)
+	}
+	return fmt.Sprintf("https://github.com/%s.git", repo)
+}
+
+// configureGitAuth configures git to use GitHub token for authentication
+func (pc *PRCreator) configureGitAuth(repoPath string) error {
+	token := pc.config.GitHubToken
+	if token == "" {
+		return fmt.Errorf("no GitHub token available")
+	}
+
+	// Configure git credential helper to use the token
+	cmd := exec.Command("git", "config", "credential.helper", "store")
+	cmd.Dir = repoPath
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to configure credential helper: %w", err)
+	}
+
+	// Get the remote URL
+	cmd = exec.Command("git", "config", "--get", "remote.origin.url")
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to get remote URL: %w", err)
+	}
+
+	remoteURL := strings.TrimSpace(string(output))
+
+	// Update remote URL to use token authentication
+	// Convert to HTTPS if needed and inject token
+	if strings.HasPrefix(remoteURL, "https://") {
+		// Inject token: https://TOKEN@github.com/...
+		authenticatedURL := strings.Replace(remoteURL, "https://", fmt.Sprintf("https://%s@", token), 1)
+		cmd = exec.Command("git", "remote", "set-url", "origin", authenticatedURL)
+		cmd.Dir = repoPath
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to set authenticated remote URL: %w", err)
+		}
+	}
+
+	fmt.Println("✅ Git authentication configured")
+	return nil
 }
 
 // getAuthenticatedRepoURL constructs the repository URL with authentication token
@@ -341,12 +400,31 @@ func (pc *PRCreator) createGitHubPR(branchName, sourceBranch, sourceCommit strin
 	ctx := context.Background()
 
 	// Parse repository owner and name
-	parts := strings.Split(pc.functionalRepo, "/")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid repository format: %s", pc.functionalRepo)
+	var owner, repo string
+
+	// Check if functionalRepo is a full URL
+	if strings.HasPrefix(pc.functionalRepo, "http://") || strings.HasPrefix(pc.functionalRepo, "https://") {
+		// Extract owner/repo from URL
+		// Example: https://github.com/owner/repo.git -> owner/repo
+		repoURL := strings.TrimSuffix(pc.functionalRepo, "/")
+		repoURL = strings.TrimSuffix(repoURL, ".git")
+
+		// Split by "/" and get last two parts
+		parts := strings.Split(repoURL, "/")
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("invalid repository URL format: %s", pc.functionalRepo)
+		}
+		owner = parts[len(parts)-2]
+		repo = parts[len(parts)-1]
+	} else {
+		// Parse as owner/repo format
+		parts := strings.Split(pc.functionalRepo, "/")
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid repository format: %s (expected 'owner/repo' or full URL)", pc.functionalRepo)
+		}
+		owner = parts[0]
+		repo = parts[1]
 	}
-	owner := parts[0]
-	repo := parts[1]
 
 	// Create PR
 	title := fmt.Sprintf("🤖 Auto-generated functional tests from %s", sourceBranch)

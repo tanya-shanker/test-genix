@@ -29,10 +29,10 @@ spec:
     description: GitHub token (from OnePipeline environment)
     type: string
     default: ""
-  - name: functional-test-repo
-    description: Functional test repository (org/repo)
-    type: string
-    default: ""
+  # - name: functional-test-repo
+  #   description: Functional test repository (org/repo)
+  #   type: string
+  #   default: ""
   - name: coverage-target
     description: Target code coverage percentage
     type: string
@@ -97,8 +97,8 @@ spec:
       value: $(params.base-branch)
     - name: coverage-target
       value: $(params.coverage-target)
-    - name: functional-test-repo
-      value: $(params.functional-test-repo)
+    # - name: functional-test-repo
+    #   value: $(params.functional-test-repo)
     - name: bobshell-api-key-secret
       value: $(params.bobshell-api-key-secret)
     - name: github-token-secret

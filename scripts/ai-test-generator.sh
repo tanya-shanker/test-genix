@@ -426,8 +426,57 @@ EOF
 }
 
 run_go_coverage() {
-  go test ./... -coverprofile=coverage.out 2>/dev/null || echo "0"
-  go tool cover -func=coverage.out 2>/dev/null | grep total | awk '{print $3}' | sed 's/%//' || echo "0"
+  local stage="$1"
+  
+  log_info "Running Go coverage analysis..."
+  
+  # Find all Go packages, excluding vendor and generated test directories
+  local packages
+  packages=$(go list ./... 2>/dev/null | grep -v '/vendor/' | grep -v '/.ai-generated-tests/' || echo "")
+  
+  if [ -z "$packages" ]; then
+    log_warning "No Go packages found"
+    echo "0"
+    return
+  fi
+  
+  # Run tests for each package separately to avoid package conflicts
+  local total_coverage=0
+  local package_count=0
+  local temp_coverage_dir=$(mktemp -d)
+  
+  for pkg in $packages; do
+    local pkg_name=$(basename "$pkg")
+    local coverage_file="${temp_coverage_dir}/${pkg_name}.out"
+    
+    # Run tests for this package only
+    if go test "$pkg" -coverprofile="$coverage_file" 2>/dev/null; then
+      if [ -f "$coverage_file" ]; then
+        local pkg_coverage
+        pkg_coverage=$(go tool cover -func="$coverage_file" 2>/dev/null | grep total | awk '{print $3}' | sed 's/%//' || echo "0")
+        
+        if [ -n "$pkg_coverage" ] && [ "$pkg_coverage" != "0" ]; then
+          total_coverage=$(echo "$total_coverage + $pkg_coverage" | bc 2>/dev/null || echo "$total_coverage")
+          package_count=$((package_count + 1))
+        fi
+      fi
+    else
+      log_warning "Go test failed for package: $pkg"
+    fi
+  done
+  
+  # Calculate average coverage
+  if [ "$package_count" -gt 0 ]; then
+    local avg_coverage
+    avg_coverage=$(echo "scale=2; $total_coverage / $package_count" | bc 2>/dev/null || echo "0")
+    echo "$avg_coverage"
+  else
+    log_warning "Could not get baseline coverage: no packages tested successfully"
+    echo "0"
+  fi
+  
+  # Cleanup
+  rm -rf "$temp_coverage_dir"
 }
 
 run_js_coverage() {

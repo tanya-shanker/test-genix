@@ -66,3 +66,8 @@ htmlcov/
 # Archives
 *.tar.gz
 *.zip
+
+# Presentation files
+*.pptx
+*.ppt
+create_presentation.py
